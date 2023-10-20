@@ -440,13 +440,30 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](xxxn/docx/NhjXdniyao
 
 基于上次的测试技巧，我们对以下几种场景的产物进行了测试，得到报告如下：
 
-| Toolchain | Environment | Timing                                                   | Summary             |
-| --------- | ----------- | -------------------------------------------------------- | ------------------- |
-| tsc       | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu 1.047 total | b、c 的执行是并行的 |
-| tsc       | Chrome      | ![](./2023-10-20-17-25-14.png) | b、c 的执行是并行的 |
+| Toolchain        | Environment | Timing                                                           | Summary                 |
+| ---------------- | ----------- | ---------------------------------------------------------------- | ----------------------- |
+| `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**     | b、c 的执行是**并行**的 |
+| `tsc`            | Chrome      | ![](./2023-10-20-17-25-14.png)                                   | b、c 的执行是**并行**的 |
+| `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**       | b、c 的执行是**串行**的 |
+| `es bundle`      | Chrome      | ![](./2023-10-20-17-28-13.png)                                   | b、c 的执行是**串行**的 |
+| `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total** | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | ![](./2023-10-20-17-29-26.png)                                   | b、c 的执行是**并行**的 |
 
+总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 ES module 规范的，会导致原本可以并行执行的模块变成了同步执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#CdgUdwHRGoxNScxerNvc0NCwnod)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
+### TLA Fuzzer
 
+在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，evanw 此前为了测试 TLA 的语义正确性，开放了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 预期的正确性，也进一步验证了我们的结论：
+
+![](./2023-10-20-17-31-11.png)
+
+有兴趣的同学可以研究 fuzzer 的实现，这里不再展开。
+
+## Webpack TLA Runtime
+
+由于只有 Webpack 正确地处理了 TLA 打包后的语义，本节将对 Webpack 的 TLA Runtime 进行分析。
+
+### 基本例子
 
 
 
