@@ -1,0 +1,439 @@
+# Top-level-await (TLA)
+
+## Motivation
+
+此前，在一个 OnCall（​[Syntax Checker errors introduced by TLA](xxxn/wiki/G1IqwZtiGirVWWkq2PpcWCArntc)）中，我以一种非常有趣的方式认识到了 TLA (Top-level await)，在本文中，我进一步对 TLA 的 Specification、Toolchain Support、Webpack Runtime、Availability、Profiling 等进行了更为深入和全面的分析。
+
+## Specification
+
+我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 TLA 的最新的标准定义。TLA 的设计初衷来源于 await 仅在 async function 内可用，这带来了以下问题：​
+
+1. 一个模块如果存在 **_IIAFE (Immediately Invoked Async Function Expression)_** ，可能会导致 `exports` 在该 IIAFE 的初始化完成之前就被访问，如下所示：​
+
+```ts {4-6}
+// awaiting.mjs
+let output;
+
+(async () => {
+  output = await fetch(url);
+})();
+
+export { output }; // output 被消费时，上述 IIAFE 还没执行结束
+```
+
+2. 为了解决 1 中的问题，我们可能需要导出一个 Promise 给上游消费，但导出 Promise 显然会导致使用也需要感知这一类型：
+
+```ts {4}
+// awaiting.mjs
+let output;
+
+export default (async () => {
+  output = fetch(url); // await 被移除了，output 是一个 promise
+})();
+
+export { output };
+```
+
+接着，我们可以这样消费：
+
+```ts
+// usage.mjs
+import promise, { output } from "./awaiting.mjs";
+export function outputPlusValue(value) {
+  return output + value;
+}
+
+promise.then(() => {
+  console.log(output);
+});
+```
+
+这带来了以下问题：
+
+1. 每个依赖方都必须了解该模块的协议才能正确的使用该模块；
+2. 如果你忘记了这一协议，有时代码可能能够正常 Work（由于 race 获胜），有时则不能；
+3. 在多层依赖的情况下，Promise 需要贯穿在每个模块中（“链式污染”？）
+
+<p align="center">
+  <img width="200" src="/promise.gif" />
+</p>
+
+为此，引入 Top-level await，模块的写法将可以变成这样：​
+
+```ts
+const output = await fetch(url);
+export { output };
+```
+
+一个典型的用例，就是解决“动态依赖路径” 的问题，这对于国际化、基于环境拆分依赖时非常有用：​
+
+```ts
+const strings = await import(`/i18n/${navigator.language}`);
+```
+
+更多的用例见[这里](https://github.com/tc39/proposal-top-level-await#use-cases)。​
+
+## Compatibility
+
+根据 [Can I Use](https://caniuse.com/?search=top%20level%20await)，我们可以在 Chrome 89，以及 Safari 15 上使用 TLA，Node.js 在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 也正式支持了 TLA。​
+
+你可以快速复制这段代码到你的 Chrome / Node.js 命令行中执行：
+
+```ts
+function sleep(t) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, t);
+  });
+}
+
+await sleep(1000);
+
+console.log("Hello, TLA!");
+```
+
+<p align="center">
+  <img width="500" src="/compatibility.png" />
+  <img width="300" src="/tla-result.png" />
+</p>
+
+这是原生的 TLA 的兼容性，这是一个较新的 ECMAScript 特性，我们目前（2023 年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 **“编译行为”** 和 **“产物的兼容性”**。
+
+## Toolchain Support
+
+### Prerequisites
+
+为了统一测试编译行为的基准，我们约定测试的 Minimal Example 如下：
+
+<p align="center">
+  <img width="100%" src="/minimal-examplea.png" />
+</p>
+
+<details>
+  <summary>展开原始代码</summary>
+  <p>
+    
+```ts
+// a.ts
+import { B } from "./b";
+import { C } from "./c";
+
+console.log("Hello", B, C);
+```
+
+```ts
+// b.ts
+import { sleep } from "./d";
+
+await sleep(1000);
+export const B = "TLA (b)";
+```
+
+```ts
+// c.ts
+import { sleep } from "./d";
+
+await sleep(500);
+export const C = "TLA (c)";
+```
+
+```ts
+// d.ts
+export function sleep(t: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, t);
+  });
+}
+```
+
+  </p>
+</details>
+
+各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。
+
+
+### TypeScript (tsc)
+
+在 tsc 中，仅在 `module` 为 `es2022`、`esnext`、`system`、`node16`、`nodenext`，且 target >= es2017 时才能成功编译 TLA，否则会遇到如下报错：
+bun build src/a.ts --outdir ./build --format esm
+
+```ts
+src/top-level-await.ts:3:1 - error TS1378: Top-level 'await' expressions are only allowed when the 'module' option is set to 'es2022', 'esnext', 'system', 'node16', or 'nodenext', and the 'target' option is set to 'es2017' or higher.
+
+3 await sleep(100);
+  ~~~~~
+```
+
+编译成功后，可以看到发现产物和源码几乎一样：
+
+```ts
+// esm/a.js
+import { B } from "./b";
+import { C } from "./c";
+console.log("Hello", B, C);
+```
+
+```ts
+// esm/b.js
+import { sleep } from "./d";
+await sleep(1000);
+export const B = 'TLA (b)';
+```
+
+```ts
+// esm/c.js
+import { sleep } from "./d";
+await sleep(500);
+export const C = 'TLA (c)';
+```
+
+```ts
+// esm/d.js
+export function sleep(t) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, t);
+    });
+}
+```
+
+由于 tsc 是一个 transpiler，不存在 bundle 行为，因此 tsc 下不会为 TLA 引入额外的 Runtime，也就是说，**tsc 没有考虑 TLA 的兼容性**。可移步 [Profiling](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#WchUduWhAo7hVlxVWNicXRqenZf) 一节，了解如何去运行这段产物。
+
+
+### esbuild
+
+esbuild 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
+
+
+<p align="center">
+  <img width="800" src="/tsc-tla-errpr-1.png" />
+  <img width="800" src="/tsc-tla-errpr-2.png" />
+</p>
+
+编译成功后，产物如下：
+
+```ts
+// src/d.ts
+function sleep(t) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, t);
+  });
+}
+
+// src/b.ts
+await sleep(1e3);
+var B = "TLA (b)";
+
+// src/c.ts
+await sleep(500);
+var C = "TLA (c)";
+
+// src/a.ts
+console.log("Hello", B, C);
+```
+
+可以看到，这里的产出直接平铺了所有的 `module`，这似乎改变了代码原始的语义！这一点我们可以在 Profiling 一节中得到验证。
+
+对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到一些信息，evanw 的对此的回复是：
+
+> Sorry, top-level await is not supported. It messes with a lot of things and adding support for it is quite complicated. It likely won't be supported for a long time.
+
+### Rollup
+
+Rollup 只能在 format 为 es 或 system的场景下支持成功编译 TLA:
+
+![](/rollup-tla.png)
+
+`es` 这里和 `esbuild` 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
+
+> `execute: AsyncFunction` - If using an asynchronous function for execute, top-level await execution support semantics are provided following [variant B of the specification](https://github.com/tc39/proposal-top-level-await#variant-b-top-level-await-does-not-block-sibling-execution).
+
+因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 execute 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。
+
+关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623。
+
+### Webpack
+
+TLA 最早于 [Webpack 5](https://webpack.js.org/blog/2020-10-10-webpack-5-release/#async-modules) 中开始支持 ，但需要通过在 Webpack 配置中增加 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 开启：
+
+```ts
+module.exports = {
+  // ...
+  experiments: {
+    topLevelAwait: true,
+  },
+};
+```
+
+从 [5.83.0](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 开始，Webpack 默认开启了此选项，但如果你只是简单地书写一段 TLA 测试代码在 Webpack 中进行编译：
+
+```ts
+await 1;
+```
+
+你会发现，你遇到如下编译错误：
+
+```bash {7-9}
+> webpack
+
+assets by status 2.3 KiB [cached] 1 asset
+./src/index.js 286 bytes [built] [code generated] [1 error]
+
+ERROR in ./src/index.js
+Module parse failed: Top-level-await is only supported in EcmaScript Modules
+You may need an appropriate loader to handle this file type, currently no loaders are configured to process this file. See https://webpack.js.org/concepts#loaders
+Error: Top-level-await is only supported in EcmaScript Modules
+    at ./node_modules/webpack/lib/dependencies/HarmonyDetectionParserPlugin.js:72:11
+    at Hook.eval [as call] (eval at create (./node_modules/tapable/lib/HookCodeFactory.js:19:10), <anonymous>:7:16)
+    at Hook.CALL_DELEGATE [as _call] (./node_modules/tapable/lib/Hook.js:14:14)
+    at JavascriptParser.walkAwaitExpression (./node_modules/webpack/lib/javascript/JavascriptParser.js:2807:29)
+    at JavascriptParser.walkExpression (./node_modules/webpack/lib/javascript/JavascriptParser.js:2734:10)
+    at JavascriptParser.walkExpressionStatement (./node_modules/webpack/lib/javascript/JavascriptParser.js:1903:8)
+    at JavascriptParser.walkStatement (./node_modules/webpack/lib/javascript/JavascriptParser.js:1821:10)
+    at JavascriptParser.walkStatements (./node_modules/webpack/lib/javascript/JavascriptParser.js:1702:9)
+    at JavascriptParser.parse (./node_modules/webpack/lib/javascript/JavascriptParser.js:3995:9)
+    at ./node_modules/webpack/lib/NormalModule.js:1093:26
+
+webpack 5.88.2 compiled with 1 error in 120 ms
+```
+
+通过搜寻相关 Issue ([webpack/#15869 · Top Level await parsing failes](https://github.com/webpack/webpack/issues/15869))，我们可以看到，Webpack 默认情况下，会认为那些没有 import / export 的模块是 CommonJS 模块，这一逻辑的实现位于 `lib/dependencies/HarmonyDetectionParserPlugin.js​`:
+
+```ts {4-12,28-32}
+parser.hooks.program.tap("HarmonyDetectionParserPlugin", ast => {
+    const isStrictHarmony =
+        parser.state.module.type === JAVASCRIPT_MODULE_TYPE_ESM;
+    const isHarmony =
+        isStrictHarmony ||
+        ast.body.some(
+            statement =>
+                statement.type === "ImportDeclaration" ||
+                statement.type === "ExportDefaultDeclaration" ||
+                statement.type === "ExportNamedDeclaration" ||
+                statement.type === "ExportAllDeclaration"
+        );
+    if (isHarmony) {
+        // ...
+        HarmonyExports.enable(parser.state, isStrictHarmony);
+        parser.scope.isStrict = true;
+        // ...
+    }
+});
+
+parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
+    const module = parser.state.module;
+    if (!this.topLevelAwait) {
+        throw new Error(
+            "The top-level-await experiment is not enabled (set experiments.topLevelAwait: true to enabled it)"
+        );
+    }
+    if (!HarmonyExports.isEnabled(parser.state)) {
+        throw new Error(
+            "Top-level-await is only supported in EcmaScript Modules"
+        );
+    }
+    /** @type {BuildMeta} */
+    (module.buildMeta).async = true;
+});
+```
+
+综上，在 Webpack 中，成功编译 TLA 的条件如下：​
+
+1. 保证 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 为 true；​
+
+2. 确保使用了 TLA 的 module 存在 export，能够被识别为一个 ES Module （HarmonyModules）​
+
+对于 Webpack 处理 TLA 的 Runtime 流程可以移步 [Webpack TLA Runtime](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#CdgUdwHRGoxNScxerNvc0NCwnod) 一节。
+
+### bun
+
+[bun build](https://bun.sh/docs/bundler#format) 目前只支持 esm，也就是说，bun 也会原封不动的将 TLA 编译到产物中去，同样也没有考虑兼容性，只考虑了现代浏览器的运行：
+
+![](/bun.png)
+
+## Profiling
+
+这一节中，我们会首先讲述如何运行各类工具链的产物，接着结合 Profiling 来讲述运行情况。
+
+### In Node.js
+
+首先，依赖了 TLA 的 module 必然是一个 ES module，如果我们使用 Node.js 来运行，那么就会遇到使用 Node.js 执行 TLA 的各种问题。考虑到 tsc 场景的产物是多个 ES module 模块，而不是单个 ES module，场景最为复杂。因此本节将使用 Node.js 执行 tsc 中生成的产物来进行讲述。
+
+####  Question: `.mjs` or `type: module`?
+
+直接运行 node esm/a.js 来运行 [Toolchain Support > tsc](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#TFEWdT99tokanmx6nA2c0M6CnUf) 中生成的产物，会依次遇到如下问题：
+
+```bash
+(node:76392) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
+```
+
+根据 [https://nodejs.org/api/esm.html#enabling](https://nodejs.org/api/esm.html#enabling:)[:](https://nodejs.org/api/esm.html#enabling:)：
+
+> Node.js has two module systems: CommonJS modules and ECMAScript modules.
+**Authors can tell Node.js to use the ECMAScript modules loader via the .mjs file extension, the package.json "type" field, or the --input-type flag**. Outside of those cases, Node.js will use the CommonJS module loader.
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
+
+```ts
+
+```
