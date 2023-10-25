@@ -1,9 +1,10 @@
-# Deep Dive into `Top-Level-Await (TLA)`
-
 ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/main.png?raw=true)
 
 [![CC0](http://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 
+## Table of Contents
+
+- [Table of Contents](#table-of-contents)
 - [Introduction](#introduction)
 - [Specification](#specification)
 - [Compatibility](#compatibility)
@@ -45,6 +46,7 @@
 - [后续更新](#后续更新)
   - [Rspack 于 v0.3.8 正式支持 TLA](#rspack-于-v038-正式支持-tla)
 - [参考](#参考)
+- [License](#license)
 
 ## Introduction
 
