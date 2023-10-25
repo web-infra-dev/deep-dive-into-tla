@@ -4,7 +4,7 @@
 
 在 ByteDance 内，我们基于 [Rsbuild](https://github.com/web-infra-dev/rsbuild) 建设的 Mobile Web Framework 的用户遇到了 [Syntax Checker](https://github.com/web-infra-dev/rsbuild/blob/main/packages/document/docs/en/shared/config/security/checkSyntax.md#enable-detection) 问题:
 
-```js {6-7}
+```bash {6-7}
 error   [Syntax Checker] Find some syntax errors after production build:
 
   ERROR#1:
@@ -18,9 +18,8 @@ Error: [Syntax Checker] The current build fails due to an incompatible syntax, w
 
 针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 JavaScript/TypeScript 文件”**，用户此时可能依赖了一个产物中包含 async/await 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://modernjs.dev/builder/en/api/config-source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://modernjs.dev/builder/en/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
 
-
 ```ts
-import path from 'path';
+import path from "path";
 
 export default {
   source: {
@@ -39,9 +38,9 @@ export default {
 
 ## Specification
 
-我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 TLA 的最新的标准定义。TLA 的设计初衷来源于 await 仅在 async function 内可用，这带来了以下问题：​
+我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 **TLA** 的最新的标准定义。TLA 的设计初衷来源于 `await` 仅在 `async function` 内可用，这带来了以下问题：
 
-1. 一个模块如果存在 **_IIAFE (Immediately Invoked Async Function Expression)_** ，可能会导致 `exports` 在该 IIAFE 的初始化完成之前就被访问，如下所示：​
+1.  一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
 
 ```ts {4-6}
 // awaiting.mjs
@@ -88,17 +87,20 @@ promise.then(() => {
 3. 在多层依赖的情况下，Promise 需要贯穿在每个模块中（“链式污染”？）
 
 <p align="center">
-  <img width="200" src="/promise.gif" />
+  <img
+    width="200"
+    src="https://github.com/ulivz/blog/blob/master/docs/public/promise.gif?raw=true"
+  />
 </p>
 
-为此，引入 Top-level await，模块的写法将可以变成这样：​
+为此，引入 `Top-level await`，模块的写法将可以变成这样：​
 
 ```ts
 const output = await fetch(url);
 export { output };
 ```
 
-一个典型的用例，就是解决“动态依赖路径” 的问题，这对于国际化、基于环境拆分依赖时非常有用：​
+一个典型的用例，就是解决 **“动态依赖路径”** 的问题，这对于**国际化、基于环境拆分依赖**等场景非常有用：​
 
 ```ts
 const strings = await import(`/i18n/${navigator.language}`);
@@ -108,9 +110,16 @@ const strings = await import(`/i18n/${navigator.language}`);
 
 ## Compatibility
 
-根据 [Can I Use](https://caniuse.com/?search=top%20level%20await)，我们可以在 Chrome 89，以及 Safari 15 上使用 TLA，Node.js 在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 也正式支持了 TLA。​
+根据 [Can I Use](https://caniuse.com/?search=top%20level%20await)，我们可以在 **Chrome 89**，以及 **Safari 15** 上使用 TLA，**Node.js** 在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 也正式支持了 TLA，否则会遇到如下报错：
 
-你可以快速复制这段代码到你的 Chrome / Node.js 命令行中执行：
+<p align="center">
+  <img
+    width="500"
+    src="https://github.com/ulivz/blog/blob/master/docs/public/compatibility.png?raw=true"
+  />
+</p>
+
+你可以快速复制这段代码到你的 Chrome Devtools Console 面板或 Node.js 命令行中执行：
 
 ```ts
 function sleep(t) {
@@ -125,11 +134,10 @@ console.log("Hello, TLA!");
 ```
 
 <p align="center">
-  <img width="500" src="/compatibility.png" />
-  <img width="300" src="/tla-result.png" />
+  <img width="300" src="https://github.com/ulivz/blog/blob/master/docs/public//tla-result.png?raw=true" />
 </p>
 
-这是原生的 TLA 的兼容性，这是一个较新的 ECMAScript 特性，我们目前（2023 年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 **“编译行为”** 和 **“产物的兼容性”**。
+这是原生的 TLA 的兼容性，这是一个较新的 ECMAScript 特性，我们目前（2023年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 “**编译行为**” 和 “**产物的兼容性**”。
 
 ## Toolchain Support
 
