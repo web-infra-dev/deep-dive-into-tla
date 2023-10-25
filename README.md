@@ -86,7 +86,7 @@ export default {
 
 我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 **TLA** 的最新的标准定义。TLA 的设计初衷来源于 `await` 仅在 `async function` 内可用，这带来了以下问题：
 
-1.  一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
+1. 一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
 
   ```ts {4-6}
   // awaiting.mjs
@@ -1024,7 +1024,7 @@ basicFunction(args, body) {
 
 ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/655a93096c90442f9f4050d082604c42~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=2774&h=1770&s=857364&e=png&b=232222)
 
-但是偏偏，`Top-level await` 没有遵守这一原则，在 [webpack#12529](https://github.com/webpack/webpack/pull/12529) 中，我们可以看到，[Alexander Akait](https://github.com/alexander-akait) 曾经对 Template 中的 `async await` 的兼容性提出过质疑，但是 [Tobias Koppers](https://github.com/sokra) 以非常难以修复进行了回应：
+但是偏偏，`Top-level await` 没有遵守这一原则，在 [webpack#12529](https://github.com/webpack/webpack/pull/12529) 中，我们可以看到，[Alexander Akait](https://github.com/alexander-akait) 曾经对 Template 中的 `async/await` 的兼容性提出过质疑，但是 [Tobias Koppers](https://github.com/sokra) 以非常难以修复进行了回应：
 
 ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92cb50ff488d48ca926050fd1475fa54~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1980&h=1046&s=275006&e=png&a=1&b=fdfcfc)
 
@@ -1045,7 +1045,7 @@ basicFunction(args, body) {
 1.  TLA 的诞生之初，是为了尝试解决 ES Module 的异步初始化问题；
 1.  TLA 属于 `es2022` 的特性，在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 以上的版本中可以用，如需在 UI 代码中使用，需要借助 Bundler 打包；除非你会在前端项目中直接使用 [es module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)，一般来说，你需要打包成 **`iife`**；
 1.  大多数 Bundler 都能够在 target format 为 **`esm`** 时成功编译 TLA，**但是只有** **Webpack** **能够支持将 TLA 编译到** **`iife`** **，同时，Webpack 是唯一一个能够正确模拟 TLA 语义的 Bundler。**
-2.  虽然 Webpack 可以将 TLA 打包成 `iife`，但是由于产物中仍然包含 `async await`（虽然不是 TLA），这导致了只能在 `iOS11 / Chrome 55` 的机器上运行，目前，对于一些大型公司的 Mobile Web 面向 C 端的业务，可能要求兼容性设置为 **iOS 9 / Android 4.4**，因此，目前出于稳定性考虑，你不应该在 C 端项目中使用 TLA。未来，你应当基于业务尝试 TLA；
+2.  虽然 Webpack 可以将 TLA 打包成 `iife`，但是由于产物中仍然包含 `async/await`（虽然不是 TLA），这导致了只能在 `iOS11 / Chrome 55` 的机器上运行，目前，对于一些大型公司的 Mobile Web 面向 C 端的业务，可能要求兼容性设置为 **iOS 9 / Android 4.4**，因此，目前出于稳定性考虑，你不应该在 C 端项目中使用 TLA。未来，你应当基于业务尝试 TLA；
 3.  在 Webpack 实现细节上，和 `await` 要求在 `async function` 使用一样具备传染性，TLA 会导致 Dependent 同样被处理为 Async Module，但这对开发者是无感的；
 
 ## 下一步
