@@ -69,7 +69,7 @@ export default {
 
 有意思的是，**这一次的问题和我们想象的并不相同**，当我们使用 [Source Map Visualization](https://evanw.github.io/source-map-visualization/) 来定位问题时，我们发现，`async` 的位置是白色的 —— **没有源码与之映射**:
 
-![](https://github.com/ulivz/tla-website/blob/master/docs/public/source-map-missing.png?raw=true)
+![](https://github.com/ulivz/tla-website/blob/master/public/source-map-missing.png?raw=true)
 
 随着进一步分析，我们发现这个 `async` 是由 Webpack 编译 [TLA (Top-level await)](https://github.com/tc39/proposal-top-level-await) 注入的 Runtime 引入的。在这样的背景下，我们开始继续研究 TLA。
 
@@ -129,7 +129,7 @@ promise.then(() => {
 <p align="center">
   <img
     width="200"
-    src="https://github.com/ulivz/tla-website/blob/master/docs/public/promise.gif?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/public/promise.gif?raw=true"
   />
 </p>
 
@@ -155,7 +155,7 @@ const strings = await import(`/i18n/${navigator.language}`);
 <p align="center">
   <img
     width="500"
-    src="https://github.com/ulivz/tla-website/blob/master/docs/public/compatibility.png?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/public/compatibility.png?raw=true"
   />
 </p>
 
@@ -176,7 +176,7 @@ console.log("Hello, TLA!");
 <p align="center">
   <img
     width="300"
-    src="https://github.com/ulivz/tla-website/blob/master/docs/public/tla-result.png?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/public/tla-result.png?raw=true"
   />
 </p>
 
@@ -189,7 +189,7 @@ console.log("Hello, TLA!");
 为了统一测试编译行为的基准，我们约定测试的 Minimal Example 如下：
 
 <p align="center">
-  <img width="100%" src="https://github.com/ulivz/tla-website/blob/master/docs/public/minimal-example.png?raw=true">
+  <img width="100%" src="https://github.com/ulivz/tla-website/blob/master/public/minimal-example.png?raw=true">
 </p>
 
 <details>
@@ -284,7 +284,7 @@ export function sleep(t) {
 
 [esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
-| <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-2.png?raw=true" /> |
+| <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-2.png?raw=true" /> |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 
 编译成功后，产物如下：
@@ -320,7 +320,7 @@ console.log("Hello", B, C);
 
 [Rollup](https://rollupjs.org/) 只能在 `format` 为 `es` 或 `system` 的场景下支持成功编译 TLA，否则会遇到如下报错：
 
-![](https://github.com/ulivz/tla-website/blob/master/docs/public/rollup-tla.png?raw=true)
+![](https://github.com/ulivz/tla-website/blob/master/public/rollup-tla.png?raw=true)
 
 `es` 这里和 `esbuild` 生成 es bundle 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
 
@@ -423,7 +423,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 [bun build](https://bun.sh/docs/bundler#format) 目前只支持 esm，也就是说，bun 也会原封不动的将 TLA 编译到产物中去，同样也没有考虑兼容性，只考虑了现代浏览器的运行：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/bun.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/bun.png?raw=true" />
 </p>
 
 ## Profiling
@@ -510,7 +510,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 为了更好的观测运行行为，我们在代码中使用 `console.time` 来进行了打点，可以看到运行时序如下：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-tsc.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-tsc.png?raw=true" />
 </p>
 
 可以看到，**`b.js` 与 `c.js` 的 load 与 execution 都是并发的！**
@@ -522,11 +522,11 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 | Toolchain        | Environment | Timing                                                                                                 | Summary                 |
 | ---------------- | ----------- | ------------------------------------------------------------------------------------------------------ | ----------------------- |
 | `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**                                           | b、c 的执行是**并行**的 |
-| `tsc`            | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-tsc.png?raw=true)      | b、c 的执行是**并行**的 |
+| `tsc`            | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-tsc.png?raw=true)      | b、c 的执行是**并行**的 |
 | `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**                                             | b、c 的执行是**串行**的 |
-| `es bundle`      | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-esbundle.png?raw=true) | b、c 的执行是**串行**的 |
+| `es bundle`      | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-esbundle.png?raw=true) | b、c 的执行是**串行**的 |
 | `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                       | b、c 的执行是**并行**的 |
-| `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
 
 总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
@@ -535,7 +535,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，[@evanw](https://github.com/evanw) 此前为了测试 TLA 的语义正确性，开放了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 预期的正确性，也进一步验证了我们的结论：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tla-fuzzer.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/tla-fuzzer.png?raw=true" />
 </p>
 
 有兴趣的同学可以研究其实现，这里不再展开。
@@ -600,7 +600,7 @@ document.body.appendChild(component());
 
 **Output**
 
-由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/tla-website/blob/master/docs/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
+由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/tla-website/blob/master/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
 
 **Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍！**
 
@@ -609,7 +609,7 @@ document.body.appendChild(component());
 ### 整体流程
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/docs/public/whole-process.png?raw=true" />
+  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/public/whole-process.png?raw=true" />
 </p>
 
 整体上来说，会以 **Entry** 为入口，通过 **`__webpack_require__()`** 执行 **Entry** 模块，接着，首先会通过 **`__webpack_handle_async_dependencies__()`** 加载依赖，依赖的加载和 **Entry** 是完全一样的，依赖若存在依赖，也需要首先加载自身的依赖，依赖加载结束后，获取到依赖的 exports 方能执行当前 Module，执行结束后，会调用 **`__webpack_async_result__()`** 进行回调，让被依赖的模块继续向前执行。
@@ -617,7 +617,7 @@ document.body.appendChild(component());
 这里运行时的本质和依赖关系完全一致，**首先依赖开始加载本身是同步的**，最末端的依赖加载结束后，返回 `exports` 给上层依赖，上层依赖也才能开始执行，继续向上返回 exports，最终当 Entry 的所有依赖加载结束后，entry 本身的代码开始执行：
 
 <p align="center">
-  <img width="400" src="https://github.com/ulivz/tla-website/blob/master/docs/public/whole-process-2.png?raw=true" />
+  <img width="400" src="https://github.com/ulivz/tla-website/blob/master/public/whole-process-2.png?raw=true" />
 </p>
 
 可以看到，在没有 TLA 之前，这一流程会相当简单，就是一个同步的 DFS，但是一旦 Dep 的加载是异步的，那么这里就是一个异步加载的 DFS，涉及到复杂的异步任务处理。接下来，我们将详细讲述 Webpack TLA Runtime 的运行流程。
@@ -630,7 +630,7 @@ document.body.appendChild(component());
 为了便于描述，我们重新创建了一个更小的 Example 进行分析：
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/docs/public/minimal-example-2.png?raw=true">
+  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/public/minimal-example-2.png?raw=true">
 </p>
 
 让我们明确一些基本概念，并给本例子中的模块起一个别名：
