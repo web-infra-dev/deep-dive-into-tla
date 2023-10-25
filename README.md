@@ -44,7 +44,7 @@
 
 ## Introduction
 
-在 ByteDance 内，我们基于 [Rsbuild](https://github.com/web-infra-dev/rsbuild) 建设的 Mobile Web Framework 的用户遇到了 [Syntax Checker](https://github.com/web-infra-dev/rsbuild/blob/main/packages/document/docs/en/shared/config/security/checkSyntax.md#enable-detection) 问题:
+在 ByteDance 内，我们基于 [Rsbuild](https://github.com/web-infra-dev/rsbuild) 建设的 Mobile Web Framework 的用户遇到了 [Syntax Checker](https://rsbuild.dev/config/options/security.html#securitychecksyntax) 问题:
 
 ```bash {6-7}
 error   [Syntax Checker] Find some syntax errors after production build:
@@ -58,7 +58,7 @@ error   [Syntax Checker] Find some syntax errors after production build:
 Error: [Syntax Checker] The current build fails due to an incompatible syntax...
 ```
 
-针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”**，用户此时可能依赖了一个产物中包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://modernjs.dev/builder/en/api/config-source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://modernjs.dev/builder/en/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
+针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”**，用户此时可能依赖了一个产物中包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
 
 ```ts
 export default {
