@@ -2,8 +2,8 @@
 pageType: home
 
 hero:
-  name: Rspress
-  text: Rspack-based Static Site Generator
+  name: TLA
+  text: Top-level await
   tagline: Rspress tagline
   actions:
     - theme: brand
