@@ -1087,7 +1087,7 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 
 <!-- [Rspack](https://www.rspack.dev/) is a high performance Rust-based JavaScript bundler that offers strong interoperability with the [webpack](https://webpack.js.org/) ecosystem. Recently Rspack has incorporated `TLA (Top Level Await)` in [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8). -->
 
-值得一提的时，Rspack 在 TLA Fuzzer 测试上做到了和 Webpack 结果一致<sup>[9]</sup>：
+值得一提的是，Rspack 在 TLA Fuzzer 测试上做到了和 Webpack 结果一致<sup>[9]</sup>：
 
 <p align="center">
   <img
