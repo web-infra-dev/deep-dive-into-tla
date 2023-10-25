@@ -45,7 +45,7 @@
 - [写在最后](#写在最后)
 - [后续更新](#后续更新)
   - [Rspack 于 v0.3.8 正式支持 TLA，通过 Fuzzer 测试](#rspack-于-v038-正式支持-tla通过-fuzzer-测试)
-- [参考](#参考)
+- [Refs](#refs)
 
 ## Introduction
 
@@ -1083,9 +1083,11 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 
 ### Rspack 于 v0.3.8 正式支持 TLA，通过 Fuzzer 测试
 
-[Rspack](https://www.rspack.dev/) is a high performance Rust-based JavaScript bundler that offers strong interoperability with the [webpack](https://webpack.js.org/) ecosystem. Recently Rspack has incorporated `TLA (Top Level Await)` in [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8).
+[Rspack](https://www.rspack.dev/) 是一个高性能的基于 Rust 的 JavaScript 打包工具，它与 [webpack](https://webpack.js.org/) 生态系统有强大的互操作性。近期，Rspack 在 [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8) 中加入了 `TLA (Top Level Await)`。
 
-值得一提的时，Rspack 在 TLA Fuzzer 做到了和 Webpack 结果一致<sup>[9]</sup>：
+<!-- [Rspack](https://www.rspack.dev/) is a high performance Rust-based JavaScript bundler that offers strong interoperability with the [webpack](https://webpack.js.org/) ecosystem. Recently Rspack has incorporated `TLA (Top Level Await)` in [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8). -->
+
+值得一提的时，Rspack 在 TLA Fuzzer 测试上做到了和 Webpack 结果一致<sup>[9]</sup>：
 
 <p align="center">
   <img
@@ -1097,7 +1099,7 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 这么一看，在能够正确模拟 TLA 语义的 Bundler 的名单里，可以再加上 Rspack 了!
 
 
-## 参考
+## Refs
 
 <sup>[1]: https://rsbuild.dev/config/options/source.html#sourceinclude</sup><br>
 <sup>[2]: https://github.com/tc39/proposal-top-level-await</sup><br>
