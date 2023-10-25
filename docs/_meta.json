@@ -1,16 +1,7 @@
 [
   {
-    "text": "Guide",
-    "link": "/guide/",
-    "activeMatch": "/guide/"
-  },
-  {
-    "text": "Hello World",
-    "link": "/hello/",
-    "activeMatch": "/hello/"
-  },
-  {
-    "text": "API",
-    "link": "https://rspress.dev/api/index.html"
+    "text": "Posts",
+    "link": "/posts/2023-10-24-deep-dive-into-tla",
+    "activeMatch": "/posts/2023-10-24-deep-dive-into-tla"
   }
 ]

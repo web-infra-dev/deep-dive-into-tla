@@ -3,7 +3,7 @@ import { defineConfig } from 'rspress/config';
 
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
-  title: 'Rspress',
+  title: 'TLA',
   description: 'Rspack-based Static Site Generator',
   icon: "/rspress-icon.png",
   logo: {
@@ -12,7 +12,7 @@ export default defineConfig({
   },
   markdown: {
     // Switch to the JS version of the compiler
-    // mdxRs: false,
+    mdxRs: false,
   },
   themeConfig: {
     socialLinks: [
