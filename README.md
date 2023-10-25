@@ -39,7 +39,7 @@
       - [***`resolveQueue`***](#resolvequeue)
   - [复杂例子](#复杂例子)
   - [复杂的根源](#复杂的根源)
-  - [现在能用 TLA 吗？](#现在能用-tla-吗)
+- [现在能用 TLA 吗？](#现在能用-tla-吗)
 - [总结](#总结)
 - [下一步](#下一步)
 - [写在最后](#写在最后)
@@ -64,7 +64,7 @@ error   [Syntax Checker] Find some syntax errors after production build:
 Error: [Syntax Checker] The current build fails due to an incompatible syntax...
 ```
 
-针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”<sup>[1]</sup>**，用户此时可能依赖了包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
+针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为**构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件<sup>[1]</sup>**，用户此时可能依赖了包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
 
 ```ts
 export default {
@@ -74,13 +74,13 @@ export default {
 };
 ```
 
-有意思的是，**这一次的问题和我们想象的并不相同**，当我们使用 [Source Map Visualization](https://evanw.github.io/source-map-visualization/) 来定位问题时，我们发现，`async` 的位置是白色的 —— **没有源码与之映射**:
+有意思的是，**这一问题实际上和我们想象的并不相同**，当我们使用 [Source Map Visualization](https://evanw.github.io/source-map-visualization/) 来定位问题时，我们发现，`async` 的位置是白色的 —— **没有源码与之映射**:
 
 ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/source-map-missing.png?raw=true)
 
 随着进一步分析，我们发现这个 `async` 是由 Webpack 编译 [TLA (Top-level await)](https://github.com/tc39/proposal-top-level-await) 注入的 Runtime 引入的。在这样的背景下，我们开始继续研究 TLA。
 
-在本文中，我们将进一步对 TLA 的 [Specification](specification)、[Toolchain Support](#toolchain-support)、[Webpack Runtime](#webpack-tla-runtime)、[Profiling](#profiling)、、Availability 等进行了更为深入和全面的分析。
+在本文中，我们将进一步对 TLA 的 [Specification](specification)、[Toolchain Support](#toolchain-support)、[Webpack Runtime](#webpack-tla-runtime)、[Profiling](#profiling)、[Availability]((#现在能用-tla-吗)) 等进行了更为深入和全面的分析。
 
 ## Specification
 
@@ -986,7 +986,7 @@ export const promise = Promise.all([
 这一示例启发了类似一些 Bundleless 工具链的建设，如 [vite-plugin-top-level-await](https://github.com/Menci/vite-plugin-top-level-await)。而在 Bundler 层面支持 TLA 编译到 iife 的复杂度主要来源于：**我们需要合并所有模块到一个文件，还要保持上述语义。**
 
 
-### 现在能用 TLA 吗？
+## 现在能用 TLA 吗？
 
 前文我们提到的 Runtime，是发生在 **Seal** 阶段由内联脚本注入的。由于 **Seal** 已经是模块编译的最后环节，不可能在经历 **Make** 阶段（不会运行 loader），因此此处拼接的模板代码必须要考虑兼容性。实际上也是如此，Webpack 内部的 Template 均是会考虑兼容性的，如：
 
