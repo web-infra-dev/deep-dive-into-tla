@@ -1018,11 +1018,21 @@ basicFunction(args, body) {
 
 > 左侧 `target: ['web', 'es6']`；右侧 `target: ['web', 'es5']`
 
-![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/655a93096c90442f9f4050d082604c42~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=2774&h=1770&s=857364&e=png&b=232222)
+<p align="center">
+  <img
+    width="100%"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/webpack-target-diff.png?raw=true"
+  />
+</p>
 
 但是偏偏，`Top-level await` 没有遵守这一原则，在 [webpack#12529](https://github.com/webpack/webpack/pull/12529) 中，我们可以看到，[Alexander Akait](https://github.com/alexander-akait) 曾经对 Template 中的 `async/await` 的兼容性提出过质疑，但是 [Tobias Koppers](https://github.com/sokra) 以非常难以修复进行了回应：
 
-![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92cb50ff488d48ca926050fd1475fa54~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1980&h=1046&s=275006&e=png&a=1&b=fdfcfc)
+<p align="center">
+  <img
+    width="600"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tobias-code-review.png?raw=true"
+  />
+</p>
 
 因此这一实现一直被保留在了 Webpack 中，**TLA 也成为会导致 Webpack 中会导致 Runtime Template 带来兼容性问题的少数派特性**。
 
