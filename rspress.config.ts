@@ -8,7 +8,7 @@ export default defineConfig({
   description: 'Deep Dive into Top-level await',
   themeConfig: {
     socialLinks: [
-      { icon: 'github', mode: 'link', content: 'https://github.com/web-infra-dev/rspress' },
+      { icon: 'github', mode: 'link', content: 'https://github.com/ulivz/deep-dive-into-tla' },
     ],
   },
   plugins: [
