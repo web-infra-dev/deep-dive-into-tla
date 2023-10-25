@@ -28,11 +28,11 @@
   - [整体流程](#整体流程)
   - [Basic Concepts](#basic-concepts)
     - [Prerequisites](#prerequisites-1)
-    - [`webpack.Compiler`](#webpackcompiler)
+    - [Webpack 的编译过程](#webpack-的编译过程)
     - [Webpack Runtime Globals](#webpack-runtime-globals)
   - [产物分析](#产物分析)
-    - [加载入口](#加载入口)
-    - [入口的执行](#入口的执行)
+    - [加载 Entry](#加载-entry)
+    - [Entry 的执行](#entry-的执行)
     - [`__webpack_require__.a`](#__webpack_require__a)
       - [***`queue`***](#queue)
       - [***`promise`***](#promise)
@@ -44,7 +44,7 @@
 - [下一步](#下一步)
 - [写在最后](#写在最后)
 - [后续更新](#后续更新)
-  - [Rspack 于 v0.3.8 正式支持 TLA](#rspack-于-v038-正式支持-tla)
+  - [Rspack 于 v0.3.8 正式支持 TLA，通过 Fuzzer 测试](#rspack-于-v038-正式支持-tla通过-fuzzer-测试)
 - [参考](#参考)
 - [License](#license)
 
@@ -64,7 +64,7 @@ error   [Syntax Checker] Find some syntax errors after production build:
 Error: [Syntax Checker] The current build fails due to an incompatible syntax...
 ```
 
-针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为**构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件<sup>[1]</sup>**，用户此时可能依赖了包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
+针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为**构建器出于编译性能的考虑，默认情况下不会编译 `node_modules` 下的 `*.js|ts` 文件<sup>[1]</sup>**，用户此时可能依赖了包含 `async/await` 的三方依赖，从而导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
 
 ```ts
 export default {
@@ -87,7 +87,6 @@ export default {
 我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 **TLA** 的最新的标准定义。TLA 的设计初衷来源于 `await` 仅在 `async function` 内可用，这带来了以下问题：
 
 1. 一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
-
   ```ts {4-6}
   // awaiting.mjs
   let output;
@@ -100,7 +99,6 @@ export default {
   ```
 
 2. 为了解决 1 中的问题，我们可能需要导出一个 Promise 给上游消费，但导出 Promise 显然会导致使用也需要感知这一类型：
-
   ```ts {4}
   // awaiting.mjs
   let output;
@@ -113,7 +111,6 @@ export default {
   ```
 
 接着，我们可以这样消费：
-
   ```ts
   // usage.mjs
   import promise, { output } from "./awaiting.mjs";
@@ -157,11 +154,11 @@ const strings = await import(`/i18n/${navigator.language}`);
 
 ## Compatibility
 
-根据 [Can I Use](https://caniuse.com/?search=top%20level%20await)，我们可以在 **Chrome 89**，以及 **Safari 15** 上使用 TLA，**Node.js** 在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 也正式支持了 TLA。
+根据 [Can I Use](https://caniuse.com/?search=top%20level%20await)，我们可以在 **Chrome 89**，以及 **Safari 15** 上使用 TLA，**Node.js** 在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 也正式支持了 TLA：
 
 <p align="center">
   <img
-    width="500"
+    width="600"
     src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/compatibility.png?raw=true"
   />
 </p>
@@ -187,7 +184,7 @@ console.log("Hello, TLA!");
   />
 </p>
 
-这是原生支持的 TLA 的效果，但是由于这是一个较新的 ECMAScript 特性，我们目前（2023 年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 “**编译行为**” 和 “**产物的兼容性**”。
+这是原生支持的 TLA 的效果，但是由于这是一个较新的 ECMAScript 特性，我们目前（2023 年）很难直接在移动端的 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 “**编译行为**” 和 “**产物的兼容性**”。
 
 ## Toolchain Support
 
@@ -240,7 +237,7 @@ console.log("Hello, TLA!");
   </p>
 </details>
 
-各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。这里没有为 bun 创建 example，这是因为 是因为 bun 只需要在任意仓库下运行 `bun build src/a.ts --outdir ./build --format esm`。
+各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。这里没有为 bun 创建 example，这是因为 `bun` 无需任何配置，在任意仓库下运行 `bun build src/a.ts --outdir ./build --format esm` 即可进行打包的测试。
 
 ### TypeScript (tsc)
 
@@ -289,7 +286,7 @@ export function sleep(t) {
 
 ### esbuild
 
-[esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
+[esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 `tsc` 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
 | <img width="500" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tsc-tla-errpr-2.png?raw=true" /> |
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -316,9 +313,9 @@ var C = "TLA (c)";
 console.log("Hello", B, C);
 ```
 
-可以看到，**这里的产物直接平铺了所有的 `module` —— 这似乎改变了代码原始的语义！**这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
+可以看到，**这里的产物直接平铺了所有的 `module` —— 这似乎改变了代码原始的语义！** 这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
 
-对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到一些信息，evanw 的对此的回复是：
+对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到更多信息，esbuild 作者 [@evanw](https://github.com/evanw) 的对此的回复是：
 
 > Sorry, top-level await is not supported. It messes with a lot of things and adding support for it is quite complicated. It likely won't be supported for a long time.
 > 对不起，TLA 不受支持。它会影响许多事情，并且添加对它的支持相当复杂。可能很长一段时间内都无法支持。
@@ -380,7 +377,7 @@ Error: Top-level-await is only supported in EcmaScript Modules
 webpack 5.88.2 compiled with 1 error in 120 ms
 ```
 
-通过搜寻相关 Issue ([webpack/#15869 · Top Level await parsing failes](https://github.com/webpack/webpack/issues/15869))，我们可以看到，Webpack 默认情况下，会认为那些没有 import / export 的模块是 CommonJS 模块，这一逻辑的实现位于 `lib/dependencies/HarmonyDetectionParserPlugin.js​`:
+通过搜寻相关 Issue ([webpack/#15869 · Top Level await parsing failes](https://github.com/webpack/webpack/issues/15869))，我们可以看到，Webpack 默认情况下，会认为那些没有 import / export 的模块是 CommonJS 模块，这一逻辑的实现位于 [HarmonyDetectionParserPlugin.js​](https://github.com/webpack/webpack/blob/main/lib/dependencies/HarmonyDetectionParserPlugin.js):
 
 ```ts {4-12,28-32}
 parser.hooks.program.tap("HarmonyDetectionParserPlugin", (ast) => {
@@ -421,7 +418,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 综上，在 Webpack 中，成功编译 TLA 的条件如下：​
 
 1. 保证 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 为 `true`；
-2. 确保使用了 TLA 的 module 存在 `export`，能够被识别为一个 ES Module（`HarmonyModules`）
+2. 确保使用了 TLA 的 module 存在 `export`，能够被识别为一个 ES Module（`HarmonyModules`）。
 
 对于 Webpack 处理 TLA 的 Runtime 流程可以移步 [Webpack TLA Runtime](#webpack-tla-runtime) 一节。
 
@@ -435,11 +432,11 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 
 ## Profiling
 
-这一节中，我们会首先讲述如何运行各类工具链的产物，接着结合 Profiling 来讲述运行情况。
+这一节中，我们会首先讲述如何运行各类工具链的产物，接着结合 Profiling 来讲述运行行为。
 
 ### In Node.js
 
-首先，依赖了 TLA 的 module 必然是一个 ES module，如果我们使用 Node.js 来运行，那么就会遇到使用 Node.js 执行 ES module 的各种问题。考虑到 tsc 场景的产物是多个 ES module 模块，而不是单个 ES module，场景最为复杂。因此本节将使用 Node.js 执行 `tsc` 中生成的产物来进行讲述。
+首先，依赖了 TLA 的 module 必然是一个 ES module，如果我们使用 Node.js 来运行，那么就会遇到使用 Node.js 执行 ES module 的各种问题。考虑到 `tsc` 场景的产物是多个 ES module 模块，而不是单个 ES module，场景最为复杂。因此本节将使用 Node.js 执行 `tsc` 中生成的产物来进行讲述。
 
 #### Question: `.mjs` or `type: module`?
 
@@ -503,11 +500,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 ```html {9}
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Document</title>
-  </head>
+  <head></head>
   <body>
     <script type="module" src="./esm/a.js"></script>
   </body>
@@ -535,17 +528,17 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 | `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                  | b、c 的执行是**并行**的 |
 | `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
 
-总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
+总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合 TLA 规范的语义的，现有的简单的打包英文，会导致原本可以**并行执行**的模块变成了**同步执行**。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了 TLA 的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
 ### TLA Fuzzer
 
-在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，[@evanw](https://github.com/evanw) 此前为了测试 TLA 的语义正确性，开放了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 预期的正确性，也进一步验证了我们的结论：
+在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，esbuild 作者 [@evanw](https://github.com/evanw) 此前为了测试 TLA 的语义正确性，创建了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 语义的正确性，也进一步验证了我们的结论：
 
 <p align="center">
   <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-fuzzer.png?raw=true" />
 </p>
 
-Fuzzing is done by randomly generating module graphs and comparing the evaluation order of the bundled code with V8's native module evaluation order.
+Fuzzer 测试是通过随机生成 module graphs 并将打包产物的执行顺序序与 V8 的原生模块执行顺序进行比较来完成的。
 
 ## Webpack TLA Runtime
 
@@ -607,9 +600,9 @@ document.body.appendChild(component());
 
 **Output**
 
-由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
+由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。可以看到使用了 TLA 后**构建产物会变得较为复杂**，后续会进一步分析。
 
-**Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍。**
+**这里我们可以大胆地猜测，Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍。**
 
 ### 整体流程
 
@@ -646,9 +639,9 @@ document.body.appendChild(component());
 | `component.js` | Yes          | **Dep**   |                                                                                               |
 
 
-#### `webpack.Compiler`
+#### Webpack 的编译过程
 
-为了更好的理解 TLA 内部原理，我们还需要了解 Webpack 的基本编译流程，一次 compile 的的流程主要如下：
+为了更好的理解 TLA 内部原理，我们还需要简单了解一下一次 Webpack 的主要编译流程：
 
 - `newCompilationParams`：创建 `Compilation` 实例参数，核心功能是初始化用于在后续的构建流程中创建模块实例的工厂方法 `ModuleFactory`；
 - `newCompilation`：真正创建 `Compilation` 实例，并挂载一些编译文件信息；
@@ -658,7 +651,7 @@ document.body.appendChild(component());
 
 #### Webpack Runtime Globals
 
-在 `Seal` 阶段，会基于 Chunk 中的 `runtimeRequirements` 信息，使用 Template 拼接生成最终的结果代码，其中，Template 会依赖一些全局变量，在 Webpack 中，这些变量定义在 `lib/RuntimeGlobals.js` 中:
+在 `Seal` 阶段，会基于 Chunk 中的 `runtimeRequirements` 信息，使用 Template 拼接生成最终的结果代码，其中，Template 会依赖一些全局变量，在 Webpack 中，这些变量定义在 [lib/RuntimeGlobals.js](https://github.com/webpack/webpack/blob/main/lib/RuntimeGlobals.js) 中:
 
 ```js
 /**
@@ -685,9 +678,9 @@ exports.asyncModule = "__webpack_require__.a";
 
 ### 产物分析
 
-接下来，我们开始分析[产物](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。
+接下来，我们开始分析前面生成的[产物](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。
 
-#### 加载入口
+#### 加载 Entry
 
 首先，执行的入口如下：
 
@@ -731,7 +724,7 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 1. `__webpack_require__` 是完全同步的过程；
 1. `Async Dependency` 的加载发生在 Module 的加载执行阶段；
 
-#### 入口的执行
+#### Entry 的执行
 
 ```js
     138: (  // index.js
@@ -778,20 +771,20 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 
 可以看到：
 
-1. 由于 Entry 依赖了使用 TLA 的 Dep，Entry 也会被定义为异步模块，这里使用了 `__webpack_require__.a`来定义异步模块。
-2. TLA 具有传染性，依赖 TLA 的模块也会被识别为 Async Module，即使它本身没有 TLA；
+1. 由于 Entry 依赖了使用 TLA 的 Dep，Entry 也会被定义为异步模块，这里使用了 `__webpack_require__.a` 来定义异步模块。
+2. TLA 具有传染性，依赖 TLA 的模块也会被识别为 `Async Module`，即使它本身没有 TLA；
 
 因此，核心的依赖如下：
 
-1. **`__webpack_require__.a`**：定义 Async Module；
-2. **`__webpack_handle_async_dependencies__`** ：加载异步依赖；
-3. **`__webpack_async_result__`** 的作用：Async Module 加载结束的回调；
+1. `__webpack_require__.a`：定义 `Async Module`；
+2. `__webpack_handle_async_dependencies__`：加载异步依赖；
+3. `__webpack_async_result__` 的作用：`Async Module` 加载结束的回调；
 
 其中，`__webpack_require__.a` 是最值得一提的。
 
 #### `__webpack_require__.a`
 
-`__webpack_require__.a` 用于定义一个 Async Module，相关代码如下:
+`__webpack_require__.a` 用于定义一个 `Async Module`，相关代码分析如下:
 
 ```js
  __webpack_require__. a = ( module , body, hasAwait ) => {
@@ -943,19 +936,19 @@ var resolveQueue = (queue) => {
 若左图依赖关系所示，其中 `d`、`b` 两个模块是包含了 TLA 的模块，那么：
 
 1. `a`、`c` 会由于 TLA 的传染问题同样变成 Async Module；
-2. **Module 开始 Require 的时机：** 即调用 `__webpack_require__` 的时机，这里会基于 import 的顺序进行 DFS
-   假设 `a` 中 import 如下所示：
-   ```js
-   import { b } from "./b";
-   import { c } from "./c";
-   import { sleep } from "./e";
-   ```
-   那么，加载的顺序为 `a —> b —> e —> c —> d`。
+2. **Module 开始加载的时机：** 即调用 `__webpack_require__` 的时机，这里会基于 import 的顺序进行 DFS
+    假设 `a` 中 import 如下所示：
+    ```js
+    import { b } from "./b";
+    import { c } from "./c";
+    import { sleep } from "./e";
+    ```
+    那么，加载的顺序为 `a —> b —> e —> c —> d`。
 3.  **Module 加载结束的时机：**
-   1. 若加载时长 `d > b`，那么 Module 加载结束的时机为 `b —> d —> c —> a`
-   2. 若加载时长 `d < b`，那么 Module 加载结束的时机为 `d —> c —> b —> a`
-   3. 这里忽视 Sync Module `a`，因为 `a` 在加载的时候就结束了
-   4. 在存在 TLA 的模块图中，Entry 一定是一个 `Async Module`
+    1. 若加载时长 `d > b`，那么 Module 加载结束的时机为 `b —> d —> c —> a`
+    2. 若加载时长 `d < b`，那么 Module 加载结束的时机为 `d —> c —> b —> a`
+    3. 这里忽视 Sync Module `a`，因为 `a` 在加载的时候就结束了
+    4. 在存在 TLA 的模块图中，Entry 一定是一个 `Async Module`
 
 ### 复杂的根源
 
@@ -968,6 +961,8 @@ import { c } from './c.mjs';
 
 console.log(a, b, c);
 ```
+
+大致相当于：
 
 ```js
 import { promise as aPromise, a } from "./a.mjs";
@@ -988,7 +983,7 @@ export const promise = Promise.all([
 
 ## 现在能用 TLA 吗？
 
-前文我们提到的 Runtime，是发生在 **Seal** 阶段由内联脚本注入的。由于 **Seal** 已经是模块编译的最后环节，不可能在经历 **Make** 阶段（不会运行 loader），因此此处拼接的模板代码必须要考虑兼容性。实际上也是如此，Webpack 内部的 Template 均是会考虑兼容性的，如：
+前文我们提到的 Runtime，是发生在 **Seal** 阶段由内联脚本注入的。由于 **Seal** 已经是模块编译的最后环节，不可能再经历 **Make** 阶段（不会运行 loader），因此此处拼接的模板代码必须要考虑兼容性。实际上也是如此，Webpack 内部的 Template 均是会考虑兼容性的，如：
 
 ```js
  // lib/dependencies/HarmonyExportImportedSpecifierDependency.js
@@ -1028,11 +1023,11 @@ basicFunction(args, body) {
 
 ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92cb50ff488d48ca926050fd1475fa54~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1980&h=1046&s=275006&e=png&a=1&b=fdfcfc)
 
-因此这一实现一直被保留在了 Webpack 中，**TLA 也成为会导致 Runtime Template 带来兼容性问题的少数派特性**。
+因此这一实现一直被保留在了 Webpack 中，**TLA 也成为会导致 Webpack 中会导致 Runtime Template 带来兼容性问题的少数派特性**。
 
-实际上，这里也可以理解，如果 Template 中依赖了 `async / await`，那么如果要考虑兼容性，那么要考虑引入 [regenerator-runtime](https://www.npmjs.com/package/regenerator-runtime) 或者类似 tsc 中更优雅的基于状态机的实现（See: [TypeScript#1664](https://github.com/microsoft/TypeScript/issues/1664)），Web Infra 曾经的一个实习生也尝试实现过（See: [babel-plugin-lite-regenerator](https://github.com/konicyQWQ/babel-plugin-lite-regenerator)）：
+实际上，这里也可以理解，如果 Template 中依赖了 `async/await`，那么如果要考虑兼容性，那么要考虑引入 [regenerator-runtime](https://www.npmjs.com/package/regenerator-runtime) 或者类似 tsc 中更优雅的基于状态机的实现（See: [TypeScript#1664](https://github.com/microsoft/TypeScript/issues/1664)），Web Infra 曾经的一个实习生也尝试实现过（See: [babel-plugin-lite-regenerator](https://github.com/konicyQWQ/babel-plugin-lite-regenerator)）。
 
-也就是说，Webpack 对 TLA 的编译，由于产物中仍然会包含 `async / await`，这导致了只能在 **iOS 11**、**Chrome 55** 的机器上跑：
+也就是说，Webpack 对 TLA 的编译，由于产物中仍然会包含 `async/await`，这导致了只能在 **iOS 11**、**Chrome 55** 的机器上跑：
 
 | [Top-level await](https://caniuse.com/?search=Top%20level%20await)'s Compatibility | - Chrome 89 <br>- Safari 16 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1) |
 | ---------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1085,9 +1080,11 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 
 ## 后续更新
 
-### Rspack 于 v0.3.8 正式支持 TLA
+### Rspack 于 v0.3.8 正式支持 TLA，通过 Fuzzer 测试
 
 [Rspack](https://www.rspack.dev/) is a high performance Rust-based JavaScript bundler that offers strong interoperability with the [webpack](https://webpack.js.org/) ecosystem<sup>[1]</sup>. Recently Rspack has incorporated `TLA (Top Level Await)` in [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8).
+
+
 
 ## 参考
 
