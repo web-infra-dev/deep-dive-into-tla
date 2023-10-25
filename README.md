@@ -64,7 +64,7 @@ error   [Syntax Checker] Find some syntax errors after production build:
 Error: [Syntax Checker] The current build fails due to an incompatible syntax...
 ```
 
-针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”**，用户此时可能依赖了一个产物中包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
+针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”<sup>[1]</sup>**，用户此时可能依赖了包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://rsbuild.dev/config/options/source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://rsbuild.dev/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
 
 ```ts
 export default {
@@ -1091,6 +1091,7 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 
 ## 参考
 
+- <sup>[1]: https://rsbuild.dev/config/options/source.html#sourceinclude</sup>
 - https://github.com/tc39/proposal-top-level-await
 - https://v8.dev/features/top-level-await
 - https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221
