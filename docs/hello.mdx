@@ -34,7 +34,7 @@ export default {
 
 随着进一步分析，我们发现这个 `async` 是由 Webpack 编译 [TLA (Top-level await)](https://github.com/tc39/proposal-top-level-await) 注入的 Runtime 引入的。在这样的背景下，我们开始继续研究 TLA。
 
-在本文中，我们将进一步对 TLA 的 Specification、Toolchain Support、Webpack Runtime、Availability、Profiling 等进行了更为深入和全面的分析。
+在本文中，我们将进一步对 TLA 的 Specification、Toolchain Support、Webpack Runtime、Availability、[Profiling](#profiling) 等进行了更为深入和全面的分析。
 
 ## Specification
 
@@ -134,10 +134,13 @@ console.log("Hello, TLA!");
 ```
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/blog/blob/master/docs/public//tla-result.png?raw=true" />
+  <img
+    width="300"
+    src="https://github.com/ulivz/blog/blob/master/docs/public//tla-result.png?raw=true"
+  />
 </p>
 
-这是原生的 TLA 的兼容性，这是一个较新的 ECMAScript 特性，我们目前（2023年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 “**编译行为**” 和 “**产物的兼容性**”。
+这是原生的 TLA 的兼容性，这是一个较新的 ECMAScript 特性，我们目前（2023 年）很难直接在前端 UI 代码中使用它。如果目前想要在 UI 代码中使用它，还是需要借助编译工具。下一节，我们将会介绍常见的工具链的 “**编译行为**” 和 “**产物的兼容性**”。
 
 ## Toolchain Support
 
@@ -190,12 +193,11 @@ export function sleep(t: number): Promise<void> {
   </p>
 </details>
 
-各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。
+各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。这里没有为 bun 创建 example，bun 只需要在任意仓库下运行 `bun build src/a.ts --outdir ./build --format esm`。
 
 ### TypeScript (tsc)
 
-在 tsc 中，仅在 `module` 为 `es2022`、`esnext`、`system`、`node16`、`nodenext`，且 target >= es2017 时才能成功编译 TLA，否则会遇到如下报错：
-bun build src/a.ts --outdir ./build --format esm
+在 `tsc` 中，仅在 `module` 为 `es2022`、`esnext`、`system`、`node16`、`nodenext`，且 `target >= es2017` 时才能成功编译 TLA，否则会遇到如下报错：
 
 ```ts
 src/top-level-await.ts:3:1 - error TS1378: Top-level 'await' expressions are only allowed when the 'module' option is set to 'es2022', 'esnext', 'system', 'node16', or 'nodenext', and the 'target' option is set to 'es2017' or higher.
@@ -236,16 +238,14 @@ export function sleep(t) {
 }
 ```
 
-由于 tsc 是一个 transpiler，不存在 bundle 行为，因此 tsc 下不会为 TLA 引入额外的 Runtime，也就是说，**tsc 没有考虑 TLA 的兼容性**。可移步 [Profiling](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#WchUduWhAo7hVlxVWNicXRqenZf) 一节，了解如何去运行这段产物。
+由于 tsc 是一个 transpiler，不存在 bundle 行为，因此 tsc 下不会为 TLA 引入额外的 Runtime，也就是说，**tsc 没有考虑 TLA 的兼容性**。可移步 [Profiling](#profiling) 一节，了解如何去运行这段产物。
 
 ### esbuild
 
 esbuild 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
-<p align="center">
-  <img width="800" src="/tsc-tla-errpr-1.png" />
-  <img width="800" src="/tsc-tla-errpr-2.png" />
-</p>
+| <img width="500" src="https://github.com/ulivz/blog/blob/master/docs/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/blog/blob/master/docs/public/tsc-tla-errpr-2.png?raw=true" /> |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 
 编译成功后，产物如下：
 
@@ -269,7 +269,7 @@ var C = "TLA (c)";
 console.log("Hello", B, C);
 ```
 
-可以看到，这里的产出直接平铺了所有的 `module`，这似乎改变了代码原始的语义！这一点我们可以在 Profiling 一节中得到验证。
+可以看到，这里的产出直接平铺了所有的 `module`，这似乎改变了代码原始的语义！这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
 
 对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到一些信息，evanw 的对此的回复是：
 
@@ -279,15 +279,13 @@ console.log("Hello", B, C);
 
 Rollup 只能在 format 为 es 或 system 的场景下支持成功编译 TLA:
 
-![](/rollup-tla.png)
+![](https://github.com/ulivz/blog/blob/master/docs/public/rollup-tla.png?raw=true)
 
 `es` 这里和 `esbuild` 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
 
 > `execute: AsyncFunction` - If using an asynchronous function for execute, top-level await execution support semantics are provided following [variant B of the specification](https://github.com/tc39/proposal-top-level-await#variant-b-top-level-await-does-not-block-sibling-execution).
 
-因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 execute 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。
-
-关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623。
+因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 execute 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623 。
 
 ### Webpack
 
@@ -374,17 +372,19 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 
 综上，在 Webpack 中，成功编译 TLA 的条件如下：​
 
-1. 保证 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 为 true；​
+1. 保证 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 为 `true`；
 
-2. 确保使用了 TLA 的 module 存在 export，能够被识别为一个 ES Module （HarmonyModules）​
+2. 确保使用了 TLA 的 module 存在 `export`，能够被识别为一个 ES Module （HarmonyModules）​
 
-对于 Webpack 处理 TLA 的 Runtime 流程可以移步 [Webpack TLA Runtime](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#CdgUdwHRGoxNScxerNvc0NCwnod) 一节。
+对于 Webpack 处理 TLA 的 Runtime 流程可以移步 [Webpack TLA Runtime](#webpack-tla-runtime) 一节。
 
 ### bun
 
 [bun build](https://bun.sh/docs/bundler#format) 目前只支持 esm，也就是说，bun 也会原封不动的将 TLA 编译到产物中去，同样也没有考虑兼容性，只考虑了现代浏览器的运行：
 
-![](/bun.png)
+<p align="center">
+  <img width="600" src="https://github.com/ulivz/blog/blob/master/docs/public/bun.png?raw=true" />
+</p>
 
 ## Profiling
 
@@ -505,8 +505,6 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](xxxn/docx/NhjXdniyao
 由于只有 Webpack 正确地处理了 TLA 打包后的语义，本节将对 Webpack 的 TLA Runtime 进行分析。
 
 ### 基本例子
-
-
 
 ```ts
 
