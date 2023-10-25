@@ -1,45 +1,46 @@
 # Deep Dive into `Top-Level-Await (TLA)`
 
-- [Deep Dive into `Top-Level-Await (TLA)`](#deep-dive-into-top-level-await-tla)
-  - [Introduction](#introduction)
-  - [Specification](#specification)
-  - [Compatibility](#compatibility)
-  - [Toolchain Support](#toolchain-support)
-    - [Prerequisites](#prerequisites)
-    - [TypeScript (tsc)](#typescript-tsc)
-    - [esbuild](#esbuild)
-    - [Rollup](#rollup)
-    - [Webpack](#webpack)
-    - [bun](#bun)
-  - [Profiling](#profiling)
-    - [In Node.js](#in-nodejs)
-      - [Question: `.mjs` or `type: module`?](#question-mjs-or-type-module)
-      - [Question: missing `.js` extension in `tsc` out code](#question-missing-js-extension-in-tsc-out-code)
-      - [Performance](#performance)
-    - [In Chrome](#in-chrome)
-    - [Result](#result)
-    - [TLA Fuzzer](#tla-fuzzer)
-  - [Webpack TLA Runtime](#webpack-tla-runtime)
-    - [基本例子](#基本例子)
-    - [整体流程](#整体流程)
-    - [Basic Concepts](#basic-concepts)
-      - [Prerequisites](#prerequisites-1)
-      - [`webpack.Compiler`](#webpackcompiler)
-      - [Webpack Runtime Globals](#webpack-runtime-globals)
-    - [产物分析](#产物分析)
-      - [加载入口](#加载入口)
-      - [入口的执行](#入口的执行)
-      - [`__webpack_require__.a`](#__webpack_require__a)
-        - [***`queue`***](#queue)
-        - [***`promise`***](#promise)
-        - [***`resolveQueue`***](#resolvequeue)
-    - [复杂例子](#复杂例子)
-    - [复杂的根源](#复杂的根源)
-    - [现在能用 TLA 吗？](#现在能用-tla-吗)
-  - [总结](#总结)
-  - [下一步](#下一步)
-  - [写在最后](#写在最后)
-  - [参考](#参考)
+- [Introduction](#introduction)
+- [Specification](#specification)
+- [Compatibility](#compatibility)
+- [Toolchain Support](#toolchain-support)
+  - [Prerequisites](#prerequisites)
+  - [TypeScript (tsc)](#typescript-tsc)
+  - [esbuild](#esbuild)
+  - [Rollup](#rollup)
+  - [Webpack](#webpack)
+  - [bun](#bun)
+- [Profiling](#profiling)
+  - [In Node.js](#in-nodejs)
+    - [Question: `.mjs` or `type: module`?](#question-mjs-or-type-module)
+    - [Question: missing `.js` extension in `tsc` out code](#question-missing-js-extension-in-tsc-out-code)
+    - [Performance](#performance)
+  - [In Chrome](#in-chrome)
+  - [Result](#result)
+  - [TLA Fuzzer](#tla-fuzzer)
+- [Webpack TLA Runtime](#webpack-tla-runtime)
+  - [基本例子](#基本例子)
+  - [整体流程](#整体流程)
+  - [Basic Concepts](#basic-concepts)
+    - [Prerequisites](#prerequisites-1)
+    - [`webpack.Compiler`](#webpackcompiler)
+    - [Webpack Runtime Globals](#webpack-runtime-globals)
+  - [产物分析](#产物分析)
+    - [加载入口](#加载入口)
+    - [入口的执行](#入口的执行)
+    - [`__webpack_require__.a`](#__webpack_require__a)
+      - [***`queue`***](#queue)
+      - [***`promise`***](#promise)
+      - [***`resolveQueue`***](#resolvequeue)
+  - [复杂例子](#复杂例子)
+  - [复杂的根源](#复杂的根源)
+  - [现在能用 TLA 吗？](#现在能用-tla-吗)
+- [总结](#总结)
+- [下一步](#下一步)
+- [写在最后](#写在最后)
+- [后续更新](#后续更新)
+  - [Rspack 于 v0.3.8 正式支持 TLA](#rspack-于-v038-正式支持-tla)
+- [参考](#参考)
 
 ## Introduction
 
@@ -69,11 +70,11 @@ export default {
 
 有意思的是，**这一次的问题和我们想象的并不相同**，当我们使用 [Source Map Visualization](https://evanw.github.io/source-map-visualization/) 来定位问题时，我们发现，`async` 的位置是白色的 —— **没有源码与之映射**:
 
-![](https://github.com/ulivz/tla-website/blob/master/public/source-map-missing.png?raw=true)
+![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/source-map-missing.png?raw=true)
 
 随着进一步分析，我们发现这个 `async` 是由 Webpack 编译 [TLA (Top-level await)](https://github.com/tc39/proposal-top-level-await) 注入的 Runtime 引入的。在这样的背景下，我们开始继续研究 TLA。
 
-在本文中，我们将进一步对 TLA 的 [Specification](specification)、[Toolchain Support](#toolchain-support)、[Webpack Runtime](#webpack-tla-runtime)、Availability、[Profiling](#profiling) 等进行了更为深入和全面的分析。
+在本文中，我们将进一步对 TLA 的 [Specification](specification)、[Toolchain Support](#toolchain-support)、[Webpack Runtime](#webpack-tla-runtime)、[Profiling](#profiling)、、Availability 等进行了更为深入和全面的分析。
 
 ## Specification
 
@@ -81,43 +82,43 @@ export default {
 
 1.  一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
 
-```ts {4-6}
-// awaiting.mjs
-let output;
-
-(async () => {
-  output = await fetch(url);
-})();
-
-export { output }; // output 被消费时，上述 IIAFE 还没执行结束
-```
+  ```ts {4-6}
+  // awaiting.mjs
+  let output;
+  
+  (async () => {
+    output = await fetch(url);
+  })();
+  
+  export { output }; // output 被消费时，上述 IIAFE 还没执行结束
+  ```
 
 2. 为了解决 1 中的问题，我们可能需要导出一个 Promise 给上游消费，但导出 Promise 显然会导致使用也需要感知这一类型：
 
-```ts {4}
-// awaiting.mjs
-let output;
-
-export default (async () => {
-  output = fetch(url); // await 被移除了，output 是一个 promise
-})();
-
-export { output };
-```
+  ```ts {4}
+  // awaiting.mjs
+  let output;
+  
+  export default (async () => {
+    output = fetch(url); // await 被移除了，output 是一个 promise
+  })();
+  
+  export { output };
+  ```
 
 接着，我们可以这样消费：
 
-```ts
-// usage.mjs
-import promise, { output } from "./awaiting.mjs";
-export function outputPlusValue(value) {
-  return output + value;
-}
-
-promise.then(() => {
-  console.log(output);
-});
-```
+  ```ts
+  // usage.mjs
+  import promise, { output } from "./awaiting.mjs";
+  export function outputPlusValue(value) {
+    return output + value;
+  }
+  
+  promise.then(() => {
+    console.log(output);
+  });
+  ```
 
 这带来了以下问题：
 
@@ -129,7 +130,7 @@ promise.then(() => {
 <p align="center">
   <img
     width="200"
-    src="https://github.com/ulivz/tla-website/blob/master/public/promise.gif?raw=true"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/promise.gif?raw=true"
   />
 </p>
 
@@ -155,7 +156,7 @@ const strings = await import(`/i18n/${navigator.language}`);
 <p align="center">
   <img
     width="500"
-    src="https://github.com/ulivz/tla-website/blob/master/public/compatibility.png?raw=true"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/compatibility.png?raw=true"
   />
 </p>
 
@@ -176,7 +177,7 @@ console.log("Hello, TLA!");
 <p align="center">
   <img
     width="300"
-    src="https://github.com/ulivz/tla-website/blob/master/public/tla-result.png?raw=true"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-result.png?raw=true"
   />
 </p>
 
@@ -189,7 +190,7 @@ console.log("Hello, TLA!");
 为了统一测试编译行为的基准，我们约定测试的 Minimal Example 如下：
 
 <p align="center">
-  <img width="100%" src="https://github.com/ulivz/tla-website/blob/master/public/minimal-example.png?raw=true">
+  <img width="100%" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/minimal-example.png?raw=true">
 </p>
 
 <details>
@@ -284,7 +285,7 @@ export function sleep(t) {
 
 [esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
-| <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-2.png?raw=true" /> |
+| <img width="500" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tsc-tla-errpr-2.png?raw=true" /> |
 | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 
 编译成功后，产物如下：
@@ -320,7 +321,7 @@ console.log("Hello", B, C);
 
 [Rollup](https://rollupjs.org/) 只能在 `format` 为 `es` 或 `system` 的场景下支持成功编译 TLA，否则会遇到如下报错：
 
-![](https://github.com/ulivz/tla-website/blob/master/public/rollup-tla.png?raw=true)
+![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/rollup-tla.png?raw=true)
 
 `es` 这里和 `esbuild` 生成 es bundle 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
 
@@ -423,7 +424,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 [bun build](https://bun.sh/docs/bundler#format) 目前只支持 esm，也就是说，bun 也会原封不动的将 TLA 编译到产物中去，同样也没有考虑兼容性，只考虑了现代浏览器的运行：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/bun.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/bun.png?raw=true" />
 </p>
 
 ## Profiling
@@ -510,7 +511,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 为了更好的观测运行行为，我们在代码中使用 `console.time` 来进行了打点，可以看到运行时序如下：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-tsc.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-tsc.png?raw=true" />
 </p>
 
 可以看到，**`b.js` 与 `c.js` 的 load 与 execution 都是并发的！**
@@ -522,11 +523,11 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 | Toolchain        | Environment | Timing                                                                                            | Summary                 |
 | ---------------- | ----------- | ------------------------------------------------------------------------------------------------- | ----------------------- |
 | `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**                                      | b、c 的执行是**并行**的 |
-| `tsc`            | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-tsc.png?raw=true)      | b、c 的执行是**并行**的 |
+| `tsc`            | Chrome      | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-tsc.png?raw=true)      | b、c 的执行是**并行**的 |
 | `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**                                        | b、c 的执行是**串行**的 |
-| `es bundle`      | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-esbundle.png?raw=true) | b、c 的执行是**串行**的 |
+| `es bundle`      | Chrome      | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-esbundle.png?raw=true) | b、c 的执行是**串行**的 |
 | `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                  | b、c 的执行是**并行**的 |
-| `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
 
 总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
@@ -535,7 +536,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，[@evanw](https://github.com/evanw) 此前为了测试 TLA 的语义正确性，开放了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 预期的正确性，也进一步验证了我们的结论：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/public/tla-fuzzer.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-fuzzer.png?raw=true" />
 </p>
 
 有兴趣的同学可以研究其实现，这里不再展开。
@@ -600,14 +601,14 @@ document.body.appendChild(component());
 
 **Output**
 
-由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/tla-website/blob/master/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
+由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
 
 **Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍。**
 
 ### 整体流程
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/public/whole-process.png?raw=true" />
+  <img width="300" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/whole-process.png?raw=true" />
 </p>
 
 整体上来说，会以 **Entry** 为入口，通过 **`__webpack_require__()`** 执行 **Entry** 模块，接着，首先会通过 **`__webpack_handle_async_dependencies__()`** 加载依赖，依赖的加载和 **Entry** 是完全一样的，依赖若存在依赖，也需要首先加载自身的依赖，依赖加载结束后，获取到依赖的 exports 方能执行当前 Module，执行结束后，会调用 **`__webpack_async_result__()`** 进行回调，让被依赖的模块继续向前执行。
@@ -615,7 +616,7 @@ document.body.appendChild(component());
 这里运行时的本质和依赖关系完全一致，**首先依赖开始加载本身是同步的**，最末端的依赖加载结束后，返回 `exports` 给上层依赖，上层依赖也才能开始执行，继续向上返回 exports，最终当 Entry 的所有依赖加载结束后，entry 本身的代码开始执行：
 
 <p align="center">
-  <img width="400" src="https://github.com/ulivz/tla-website/blob/master/public/whole-process-2.png?raw=true" />
+  <img width="400" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/whole-process-2.png?raw=true" />
 </p>
 
 可以看到，在没有 TLA 之前，这一流程会相当简单，就是一个同步的 DFS，但是一旦 Dep 的加载是异步的，那么这里就是一个异步加载的 DFS，涉及到复杂的异步任务处理。接下来，我们将详细讲述 Webpack TLA Runtime 的运行流程。
@@ -628,7 +629,7 @@ document.body.appendChild(component());
 为了讲述 Webpack TLA Runtime 的运行流程，我们重新创建了一个更小的 Example 进行分析：
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/public/minimal-example-2.png?raw=true">
+  <img width="300" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/minimal-example-2.png?raw=true">
 </p>
 
 让我们明确一些基本概念，并给本例子中的模块起一个别名：
@@ -678,7 +679,7 @@ exports.asyncModule = "__webpack_require__.a";
 
 ### 产物分析
 
-接下来，我们开始分析[产物](https://github.com/ulivz/tla-website/blob/master/public/tla-output.js)。
+接下来，我们开始分析[产物](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-output.js)。
 
 #### 加载入口
 
@@ -875,9 +876,9 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 
 | 变量              | 类型      | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ***`queue`***     | `array`   | 当当前模块存在 `await` 时，***`queue`*** 会被初始化为 `[d: -1]`，因此本例子中 **Dep** 会存在 ***`queue`***，**Entry** 不会存在。有关 **queue 的** **状态机** **详见** **[后文](https://bytedance.feishu.cn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#PyuVdTg9toYZoHxCTEzcecghn4d)** **。**                                                                                                                                                                                                      |
+| ***`queue`***     | `array`   | 当当前模块存在 `await` 时，***`queue`*** 会被初始化为 `[d: -1]`，因此本例子中 **Dep** 会存在 ***`queue`***，**Entry** 不会存在。有关 **queue 的** **状态机** **详见[queue](#queue)** **。**                                                                                                                                                                                                      |
 | ***`depQueues`*** | `Set`     | 用于存储 Dependency 的 ***`queue`*** *。*                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ***`promise`***   | `Promise` | 用于控制模块的异步加载流程，并赋值给 ***`module.exports`*** ***，** *并将 resolve / reject 权利转移到外部（PIA Runtime 中的 [Controlled Microtask](https://bytedance.feishu.cn/docx/doxcnYsP1BObi5II59EHoUMWDvf) 亦是如此），用于控制模块加载结束的时机。当 ***`promise`*** 被 resolve 后，上层模块将能获取到当前 module 的 exports，**有关** **`promise`** **的细节详见** **[后文](https://bytedance.feishu.cn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#MsY9dCBQloBJIDxGdbMcOcC9njh)** **。** |
+| ***`promise`***   | `Promise` | 用于控制模块的异步加载流程，并赋值给 ***`module.exports`*** ***，** *并将 resolve / reject 权利转移到外部，用于控制模块加载结束的时机。当 ***`promise`*** 被 resolve 后，上层模块将能获取到当前 module 的 exports，**有关** **`promise`** **的细节详见** **[promise](#promise)** **。** |
 
 当完成一些基础的定义后，会开始 执行 Module 的 Body（`body()`），并传递：
 
@@ -898,8 +899,8 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 
 上述 ***`promise`*** 上还挂载了 2 个额外的变量需要提及：
 
-| **`[webpackExports]`** | 反向引用了 `module.exports`，因此 ****Entry** 可以通过 `promise` 来获取到 **Dep** 的 exports。                                                                                                                                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`[webpackExports]`** | 反向引用了 `module.exports`，因此 ****Entry** 可以通过 `promise` 来获取到 **Dep** 的 exports。                                                                                                                                                                                             |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **`[webpackQueues]`**  | 1.  **Entry** 和 **Dep** 会互相持有彼此的状态；<br>     2.  在 **Entry** 加载依赖（ **\[Dep\]** ）时，会传递一个 `resolve` 函数给 **Dep**，当 **Dep** 完全加载结束时，会调用 **Entry** 的 `resolve` 函数，将 Dep 的 `exports` 传递给 **Entry**，此时，**Entry** 的 **body** 才能开始执行。 |
 
 ##### ***`resolveQueue`***
@@ -929,7 +930,7 @@ var resolveQueue = (queue) => {
 <p align="center">
   <img
     width="400"
-    src="https://github.com/ulivz/tla-website/blob/master/public/complicated-example.png?raw=true"
+    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/complicated-example.png?raw=true"
   />
 </p>
 
@@ -937,23 +938,22 @@ var resolveQueue = (queue) => {
 
 1. `a`、`c` 会由于 TLA 的传染问题同样变成 Async Module；
 2. **Module 开始 Require 的时机：** 即调用 `__webpack_require__` 的时机，这里会基于 import 的顺序进行 DFS
-   假设 a 中 import 如下所示：
+   假设 `a` 中 import 如下所示：
    ```js
    import { b } from "./b";
    import { c } from "./c";
    import { sleep } from "./e";
    ```
-   那么，Require 的顺序为 `a —> b —> e —> c —> d`
-
+   那么，加载的顺序为 `a —> b —> e —> c —> d`。
 3.  **Module 加载结束的时机：**
-   1. 若加载时长 `d > b`，那么Module 加载结束的时机为 `b —> d —> c —> a`
-   2. 若加载时长 `d < b`，那么Module 加载结束的时机为 `d —> c —> b —> a`
-   3. 这里忽视 Sync Module `a`，因为 `a` 在 Require 的时候就结束了
-   4. 在存在 TLA 的模块图中，Entry 一定是一个 Async Module
+   1. 若加载时长 `d > b`，那么 Module 加载结束的时机为 `b —> d —> c —> a`
+   2. 若加载时长 `d < b`，那么 Module 加载结束的时机为 `d —> c —> b —> a`
+   3. 这里忽视 Sync Module `a`，因为 `a` 在加载的时候就结束了
+   4. 在存在 TLA 的模块图中，Entry 一定是一个 `Async Module`
 
 ### 复杂的根源
 
-如果我们完全阅读 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await)，我们可以看到一个更简单的例子来描述这一行为：
+如果我们仔细阅读 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await)，我们可以看到一个更简单的例子来描述这一行为：
 
 ```js
 import { a } from './a.mjs';
@@ -977,12 +977,12 @@ export const promise = Promise.all([
 });
 ```
 
-在 Bundler 层面支持 TLA 编译到 iife 而不是 es 的复杂度主要来源于：我们需要合并所有模块到一个文件，还要保持上述语义。
+这一示例启发了类似一些 Bundleless 工具链的建设，如 [vite-plugin-top-level-await](https://github.com/Menci/vite-plugin-top-level-await)。而在 Bundler 层面支持 TLA 编译到 iife 的复杂度主要来源于：**我们需要合并所有模块到一个文件，还要保持上述语义。**
 
 
 ### 现在能用 TLA 吗？
 
-前文我们提到的 Runtime，是发生在 **Seal** 阶段由内联脚本注入的。由于 **Seal** 已经是模块编译的最后环节，不可能在经历 **Make** 阶段（不会运行 Loader），因此此处拼接的模板代码必须要考虑兼容性。实际上也是如此，Webpack 内部的 Template 均是会考虑兼容性的，如：
+前文我们提到的 Runtime，是发生在 **Seal** 阶段由内联脚本注入的。由于 **Seal** 已经是模块编译的最后环节，不可能在经历 **Make** 阶段（不会运行 loader），因此此处拼接的模板代码必须要考虑兼容性。实际上也是如此，Webpack 内部的 Template 均是会考虑兼容性的，如：
 
 ```js
  // lib/dependencies/HarmonyExportImportedSpecifierDependency.js
@@ -1012,140 +1012,91 @@ basicFunction(args, body) {
 }
 ```
 
-
 当我们修改 `target` 在 `es5` 或 `es6` 之间切换，你会看到产物有明显的变化：
 
-左侧 `target: ['web', 'es6']`；右侧 `target: ['web', 'es5']`
+> 左侧 `target: ['web', 'es6']`；右侧 `target: ['web', 'es5']`
 
-![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/655a93096c90442f9f4050d082604c42~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=2774&h=1770&s=857364&e=png&b=232222)![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92cb50ff488d48ca926050fd1475fa54~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1980&h=1046&s=275006&e=png&a=1&b=fdfcfc)
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/655a93096c90442f9f4050d082604c42~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=2774&h=1770&s=857364&e=png&b=232222)
 
-但是偏偏，Top-level await 没有遵守这一原则（感谢@杨健 提供这个 MR）：
+但是偏偏，`Top-level await` 没有遵守这一原则，在 [webpack#12529](https://github.com/webpack/webpack/pull/12529) 中，我们可以看到，[Alexander Akait](https://github.com/alexander-akait) 曾经对 Template 中的 `async await` 的兼容性提出过质疑，但是 [Tobias Koppers](https://github.com/sokra) 以非常难以修复进行了回应：
 
-https://github.com/webpack/webpack/pull/12529
-
-可以看到，Alex 曾经对 Template 中的 ` async  `` /  ``await` 的兼容性提出过质疑，但是 Tobias 以非常 difficult 去修复进行了回应：
+![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/92cb50ff488d48ca926050fd1475fa54~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1980&h=1046&s=275006&e=png&a=1&b=fdfcfc)
 
 因此这一实现一直被保留在了 Webpack 中，**TLA 也成为会导致 Runtime Template 带来兼容性问题的少数派特性**。
 
-  
+实际上，这里也可以理解，如果 Template 中依赖了 `async / await`，那么如果要考虑兼容性，那么要考虑引入 [regenerator-runtime](https://www.npmjs.com/package/regenerator-runtime) 或者类似 tsc 中更优雅的基于状态机的实现（See: [TypeScript#1664](https://github.com/microsoft/TypeScript/issues/1664)），Web Infra 曾经的一个实习生也尝试实现过（See: [babel-plugin-lite-regenerator](https://github.com/konicyQWQ/babel-plugin-lite-regenerator)）：
 
+也就是说，Webpack 对 TLA 的编译，由于产物中仍然会包含 `async / await`，这导致了只能在 **iOS 11**、**Chrome 55** 的机器上跑：
 
-实际上，这里也可以理解，如果 Template 中依赖了 ` async  `` /  ``await`，那么如果要考虑兼容性，那么要考虑引入 [regenerator-runtime](https://www.npmjs.com/package/regenerator-runtime) 或者类似 tsc 中更优雅的基于状态机的实现（See: [TypeScript#1664](https://github.com/microsoft/TypeScript/issues/1664)），Web Infra 曾经的一个实习生也尝试实现过（See: [babel-plugin-lite-regenerator](https://github.com/konicyQWQ/babel-plugin-lite-regenerator)）：
-
-  
-
-
-也就是说，Webpack 对 TLA 的编译，由于产物中仍然会包含 async await，这导致了只能在 iOS11 / Chrome 55 的机器上跑：
-
-| [Top-level await](https://caniuse.com/?search=Top%20level%20await)'s Compatibility                                                                                                   | Expected Compatibility（Compiled to [ES5](https://caniuse.com/?search=ES5)）                                                                                                          | Actual Compatibility（i.e. [async / await](https://caniuse.com/?search=async)） |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1)-   Chrome 89 |
-| -   Safari 16                                                                                                                                                                        | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/3d3ef67c38cb46d390237d4e32462a1c~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1308&h=1016&s=200469&e=png&b=f0e6d3)-   Chrome 23 |
-| -   Safari 6                                                                                                                                                                         | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/2ac38e40b15445ffbae0b3dfa7421e0d~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1308&h=830&s=166585&e=png&b=f0e6d1)-   Chrome 55  |
-| -   Safari 11                                                                                                                                                                        |
-|                                                                                                                                                                                      |                                                                                                                                                                                       |                                                                                 |
-
-  
+| [Top-level await](https://caniuse.com/?search=Top%20level%20await)'s Compatibility | - Chrome 89 <br>- Safari 16 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1) |
+| ---------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Expected Compatibility（Compiled to [ES5](https://caniuse.com/?search=ES5)） | - Chrome 23 <br>- Safari 6 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1) |
+| Actual Compatibility <br>（i.e. [async / await](https://caniuse.com/?search=async)） | - Chrome 55  <br>- Safari 11 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/2ac38e40b15445ffbae0b3dfa7421e0d~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1308&h=830&s=166585&e=png&b=f0e6d1) |
 
 
 ## 总结
 
 1.  TLA 的诞生之初，是为了尝试解决 ES Module 的异步初始化问题；
-1.  TLA 属于 es2022 的特性，在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 以上的版本中可以用，如需在 UI 代码中使用，需要借助 Bundler 打包；除非你会在前端项目中直接使用 [es module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)，一般来说，你需要打包成 **`iife`**；
-1.  大多数 Bundler 都能够在 target format 为 **`esm`** 时成功编译 TLA，**但是只有** **Webpack** **能够支持将 TLA 编译到** **`iife`** **，同时，** **[Webpack 是唯一一个能够正确模拟 TLA 语义的 Bundler](https://bytedance.feishu.cn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#J0YjdFCWSoYP1MxfzuicTzMenJf)** **。**
-1.  虽然 Webpack 可以将 TLA 打包成 `iife`，但是由于产物中仍然包含 async await（虽然不是 TLA），这导致了只能在 iOS11 / Chrome 55 的机器上运行，目前，公司内的 C 端业务，要求兼容性设置（即 [Browserslist](https://pia.bytedance.net/cn/guide/compilation/browserslist.html)）为 **iOS 9 / Android 4.4**（部分项目可能能到 iOS 10），因此，出于稳定性考虑，你不应该在 C 端项目中使用 TLA。未来，如果你的业务要求最低兼容性为 iOS 11，那么你可以在你的 Webpack 项目中尝试 TLA；
-1.  在 Webpack 实现细节上，和 await 要求在 async function 使用一样具备传染性，TLA 会导致 Dependent 同样被处理为 Async Module，但这对开发者是无感的；
-
-  
-
+1.  TLA 属于 `es2022` 的特性，在 [v14.8.0](https://nodejs.org/en/blog/release/v14.8.0) 以上的版本中可以用，如需在 UI 代码中使用，需要借助 Bundler 打包；除非你会在前端项目中直接使用 [es module](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)，一般来说，你需要打包成 **`iife`**；
+1.  大多数 Bundler 都能够在 target format 为 **`esm`** 时成功编译 TLA，**但是只有** **Webpack** **能够支持将 TLA 编译到** **`iife`** **，同时，Webpack 是唯一一个能够正确模拟 TLA 语义的 Bundler。**
+2.  虽然 Webpack 可以将 TLA 打包成 `iife`，但是由于产物中仍然包含 `async await`（虽然不是 TLA），这导致了只能在 `iOS11 / Chrome 55` 的机器上运行，目前，对于一些大型公司的 Mobile Web 面向 C 端的业务，可能要求兼容性设置为 **iOS 9 / Android 4.4**，因此，目前出于稳定性考虑，你不应该在 C 端项目中使用 TLA。未来，你应当基于业务尝试 TLA；
+3.  在 Webpack 实现细节上，和 `await` 要求在 `async function` 使用一样具备传染性，TLA 会导致 Dependent 同样被处理为 Async Module，但这对开发者是无感的；
 
 ## 下一步
 
 看到这里，还是有一些附加问题，值得进一步研究：
 
-1.  JS Runtime 或 JS 虚拟机如何实现 Top-level await；
-1.  由 JS Runtime 或 JS 虚拟机原生支持的 TLA，在 Async Module 加载失败时，会发生什么？如何调试？
-
-  
-
+1.  JS Runtime 或 JS 虚拟机如何实现 TLA；
+2.  由 JS Runtime 或 JS 虚拟机原生支持的 TLA，在 Async Module 加载失败时，会发生什么？如何调试？
 
 ## 写在最后
 
-  
-
-
-Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist **[Top-level await is a footgun 👣🔫](https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221#top-level-await-is-a-footgun-)** ****提到：
-
-  
-
+Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist **[Top-level await is a footgun 👣🔫](https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221#top-level-await-is-a-footgun-)** 中提到：
 
 > At first, my reaction was that it's such a self-evidently bad idea that I must have just misunderstood something. But I'm no longer sure that's the case, so I'm sticking my oar in: **Top-level** **`await`** **, as far as I can tell, is a mistake and it should not become part of the language.**
 >
 > 起初，我的反应是，这是一个不言而喻的坏主意，我一定是误解了什么。 但我不再确定情况是这样，所以我坚持下去：据我所知，TLA 是一个错误，它不应该成为语言的一部分。
 
-  
-
-
 但后来，他又提到：
-
-  
-
 
 > TC39 is currently moving forward with a slightly different version of TLA, referred to as 'variant B', **in which a module with TLA doesn't block** ***sibling*** **execution**. This vastly reduces the danger of parallelizable work happening in serial and thereby delaying startup, which was the concern that motivated me to write this gist
 >
 > TC39 目前正在推进 TLA 的一个略有不同的版本，称为“变体 B”，其中 “**具有 TLA 的模块不会阻止同级执行”， 这极大地降低了并行工作串行发生并因此延迟启动的危险**，这正是促使我写下这篇文章的原因。
 
-  
-
 
 因此，他开始完全支持此提案：
 
-  
-
-
 > Therefore, a version of TLA that solves the original issue is a valuable addition to the language, and I'm in full support of the current proposal, [which you can read here](https://github.com/tc39/proposal-top-level-await).
-
-  
-
 
 那么这里我们也可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 关于 TLA 的历史，可以概括如下：
 
-  
-
-
--   [2014 年 1 月](https://github.com/tc39/notes/blob/main/meetings/2014-01/jan-30.md#asyncawait)，`async / await proposal` 被提交给委员会；
--   [2014 年 4 月](https://github.com/tc39/tc39-notes/blob/master/meetings/2014-04/apr-10.md#preview-of-asnycawait)，讨论了应该在模块中保留关键字await，以用于 TLA；
--   [2015 年 7 月](https://github.com/tc39/tc39-notes/blob/master/meetings/2015-07/july-30.md#64-advance-async-functions-to-stage-2)， `async / await proposal` 推进到 Stage 2，在这次会议中决定推迟 TLA，以避免阻塞当前提案；很多委员会的人已经开始讨论，主要是为了确保它在语言中仍然是可能的；
--   2018 年 5 月，TLA 提案进入 TC39 流程的第二阶段，许多设计决策（**特别是是否阻止“同级”执行**）在第二阶段进行讨论。
-
-  
-
+- [2014 年 1 月](https://github.com/tc39/notes/blob/main/meetings/2014-01/jan-30.md#asyncawait)，`async / await proposal` 被提交给委员会；
+- [2014 年 4 月](https://github.com/tc39/tc39-notes/blob/master/meetings/2014-04/apr-10.md#preview-of-asnycawait)，讨论了应该在模块中保留关键字await，以用于 TLA；
+- [2015 年 7 月](https://github.com/tc39/tc39-notes/blob/master/meetings/2015-07/july-30.md#64-advance-async-functions-to-stage-2)， `async / await proposal` 推进到 Stage 2，在这次会议中决定推迟 TLA，以避免阻塞当前提案；很多委员会的人已经开始讨论，主要是为了确保它在语言中仍然是可能的；
+- 2018 年 5 月，TLA 提案进入 TC39 流程的第二阶段，许多设计决策（**特别是是否阻止“同级”执行**）在第二阶段进行讨论。
 
 你怎么看待 TLA 的未来呢？
 
-  
+## 后续更新
 
+### Rspack 于 v0.3.8 正式支持 TLA
 
-  
-
-
-  
-
-
-*谢谢* *@杨健* *以及其他所有读者在我书写本文中给到的所有输入和建议！*
-
-  
-
-
-  
-
+[Rspack](https://www.rspack.dev/) is a high performance Rust-based JavaScript bundler that offers strong interoperability with the [webpack](https://webpack.js.org/) ecosystem<sup>[1]</sup>. Recently Rspack has incorporated `TLA (Top Level Await)` in [v0.3.8](https://github.com/web-infra-dev/rspack/releases/tag/v0.3.8).
 
 ## 参考
 
--   https://github.com/tc39/proposal-top-level-await
--   https://v8.dev/features/top-level-await
--   https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221
--   https://nodejs.org/en/blog/release/v14.8.0
--   https://github.com/evanw/esbuild/issues/253
--   https://github.com/rollup/rollup/issues/3623
--   https://www.typescriptlang.org/docs/handbook/esm-node.html
+- https://github.com/tc39/proposal-top-level-await
+- https://v8.dev/features/top-level-await
+- https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221
+- https://nodejs.org/en/blog/release/v14.8.0
+- https://github.com/evanw/esbuild/issues/253
+- https://github.com/rollup/rollup/issues/3623
+- https://www.typescriptlang.org/docs/handbook/esm-node.html
+
+---
+
+## License
+
+[![CC0](http://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
+
+To the extent possible under law, [ULIVZ](https://github.com/ulivz) has waived all copyright and related or neighboring rights to this work.
