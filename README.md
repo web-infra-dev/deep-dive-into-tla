@@ -2,6 +2,8 @@
 
 ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/main.png?raw=true)
 
+[![CC0](http://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
+
 - [Introduction](#introduction)
 - [Specification](#specification)
 - [Compatibility](#compatibility)
