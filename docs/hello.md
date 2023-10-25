@@ -1,4 +1,4 @@
-# Top-level-await (TLA)
+# Our research on `Top-level-await (TLA)`
 
 ## Introduction
 
@@ -482,11 +482,11 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 | Toolchain        | Environment | Timing                                                           | Summary                 |
 | ---------------- | ----------- | ---------------------------------------------------------------- | ----------------------- |
 | `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**     | b、c 的执行是**并行**的 |
-| `tsc`            | Chrome      | ![](./2023-10-20-17-25-14.png)                                   | b、c 的执行是**并行**的 |
+| `tsc`            | Chrome      | ![](/tracing-chrome-tsc.png)                                   | b、c 的执行是**并行**的 |
 | `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**       | b、c 的执行是**串行**的 |
-| `es bundle`      | Chrome      | ![](./2023-10-20-17-28-13.png)                                   | b、c 的执行是**串行**的 |
+| `es bundle`      | Chrome      | ![](/tracing-chrome-esbundle.png)                                   | b、c 的执行是**串行**的 |
 | `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total** | b、c 的执行是**并行**的 |
-| `Webpack (iife)` | Chrome      | ![](./2023-10-20-17-29-26.png)                                   | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | ![](/tracing-chrome-webpack.png)                                   | b、c 的执行是**并行**的 |
 
 总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
