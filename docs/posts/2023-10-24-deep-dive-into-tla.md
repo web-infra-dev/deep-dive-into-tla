@@ -1,12 +1,5 @@
 # Deep Dive into `Top-Level-Await (TLA)`
 
-<p align="center">
-  <img
-    width="200"
-    src="https://github.com/ulivz/tla-website/blob/master/docs/public/promise.gif?raw=true"
-  />
-</p>
-
 ## Introduction
 
 在 ByteDance 内，我们基于 [Rsbuild](https://github.com/web-infra-dev/rsbuild) 建设的 Mobile Web Framework 的用户遇到了 [Syntax Checker](https://github.com/web-infra-dev/rsbuild/blob/main/packages/document/docs/en/shared/config/security/checkSyntax.md#enable-detection) 问题:
@@ -20,7 +13,7 @@ error   [Syntax Checker] Find some syntax errors after production build:
   reason - Unexpected token (1:32501)
   code   - async(e,r)=>{try{var t=o(326)
 
-Error: [Syntax Checker] The current build fails due to an incompatible syntax, which can be fixed in the following ways:
+Error: [Syntax Checker] The current build fails due to an incompatible syntax...
 ```
 
 针对这类问题，我们首先想到的是此问题可能是三方依赖引入的，这是因为 **“构建器出于编译性能的考虑，默认情况下，Builder 不会编译 `node_modules` 下的 `*.js|ts` 文件”**，用户此时可能依赖了一个产物中包含 `async/await` 的三方依赖，导致最终编译错误。于是，我们建议开发者使用 [source.include](https://modernjs.dev/builder/en/api/config-source.html#sourceinclude) 来 [Downgrade third-party dependencies](https://modernjs.dev/builder/en/guide/advanced/browser-compatibility.html#downgrade-third-party-dependencies):
@@ -152,17 +145,10 @@ console.log("Hello, TLA!");
 
 ### Prerequisites
 
-<p align="center">
-  <img
-    width="200"
-    src="https://github.com/ulivz/tla-website/blob/master/docs/public/promise.gif?raw=true"
-  />
-</p>
-
 为了统一测试编译行为的基准，我们约定测试的 Minimal Example 如下：
 
 <p align="center">
-  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/docs/public/minimal-example.png?raw=true">
+  <img width="100%" src="https://github.com/ulivz/tla-website/blob/master/docs/public/minimal-example.png?raw=true">
 </p>
 
 <details>
@@ -206,11 +192,11 @@ console.log("Hello, TLA!");
   </p>
 </details>
 
-各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。这里没有为 bun 创建 example，bun 只需要在任意仓库下运行 `bun build src/a.ts --outdir ./build --format esm`。
+各 Tooling 的最小仓库见 [TypeScript (tsc)](https://github.com/ulivz/tsc-top-level-import) | [esbuild](https://github.com/ulivz/esbuild-top-level-import) | [Rollup](https://github.com/ulivz/rollup-top-level-import) | [Webpack](https://github.com/ulivz/webpack-top-level-import)。这里没有为 bun 创建 example，这是因为 是因为 bun 只需要在任意仓库下运行 `bun build src/a.ts --outdir ./build --format esm`。
 
 ### TypeScript (tsc)
 
-在 `tsc` 中，仅在 `module` 为 `es2022`、`esnext`、`system`、`node16`、`nodenext`，且 `target >= es2017` 时才能成功编译 TLA，否则会遇到如下报错：
+在 [tsc](https://www.typescriptlang.org/docs/handbook/compiler-options.html) 中，仅在 `module` 为 `es2022`、`esnext`、`system`、`node16`、`nodenext`，且 `target >= es2017` 时才能成功编译 TLA，否则会遇到如下报错：
 
 ```ts
 src/top-level-await.ts:3:1 - error TS1378: Top-level 'await' expressions are only allowed when the 'module' option is set to 'es2022', 'esnext', 'system', 'node16', or 'nodenext', and the 'target' option is set to 'es2017' or higher.
@@ -255,7 +241,7 @@ export function sleep(t) {
 
 ### esbuild
 
-esbuild 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
+[esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
 | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-2.png?raw=true" /> |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -282,23 +268,24 @@ var C = "TLA (c)";
 console.log("Hello", B, C);
 ```
 
-可以看到，这里的产出直接平铺了所有的 `module`，这似乎改变了代码原始的语义！这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
+可以看到，**这里的产物直接平铺了所有的 `module` —— 这似乎改变了代码原始的语义！**这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
 
 对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到一些信息，evanw 的对此的回复是：
 
 > Sorry, top-level await is not supported. It messes with a lot of things and adding support for it is quite complicated. It likely won't be supported for a long time.
+> 对不起，TLA 不受支持。它会影响许多事情，并且添加对它的支持相当复杂。可能很长一段时间内都无法支持。
 
 ### Rollup
 
-Rollup 只能在 format 为 es 或 system 的场景下支持成功编译 TLA:
+[Rollup](https://rollupjs.org/) 只能在 `format` 为 `es` 或 `system` 的场景下支持成功编译 TLA，否则会遇到如下报错：
 
 ![](https://github.com/ulivz/tla-website/blob/master/docs/public/rollup-tla.png?raw=true)
 
-`es` 这里和 `esbuild` 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
+`es` 这里和 `esbuild` 生成 es bundle 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
 
 > `execute: AsyncFunction` - If using an asynchronous function for execute, top-level await execution support semantics are provided following [variant B of the specification](https://github.com/tc39/proposal-top-level-await#variant-b-top-level-await-does-not-block-sibling-execution).
 
-因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 execute 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623 。
+因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 `execute` 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623 。
 
 ### Webpack
 
@@ -386,8 +373,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 综上，在 Webpack 中，成功编译 TLA 的条件如下：​
 
 1. 保证 [experiments.topLevelAwait](https://webpack.js.org/configuration/experiments/#experimentstoplevelawait) 为 `true`；
-
-2. 确保使用了 TLA 的 module 存在 `export`，能够被识别为一个 ES Module （HarmonyModules）​
+2. 确保使用了 TLA 的 module 存在 `export`，能够被识别为一个 ES Module（`HarmonyModules`）
 
 对于 Webpack 处理 TLA 的 Runtime 流程可以移步 [Webpack TLA Runtime](#webpack-tla-runtime) 一节。
 
@@ -405,11 +391,11 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 
 ### In Node.js
 
-首先，依赖了 TLA 的 module 必然是一个 ES module，如果我们使用 Node.js 来运行，那么就会遇到使用 Node.js 执行 TLA 的各种问题。考虑到 tsc 场景的产物是多个 ES module 模块，而不是单个 ES module，场景最为复杂。因此本节将使用 Node.js 执行 tsc 中生成的产物来进行讲述。
+首先，依赖了 TLA 的 module 必然是一个 ES module，如果我们使用 Node.js 来运行，那么就会遇到使用 Node.js 执行 ES module 的各种问题。考虑到 tsc 场景的产物是多个 ES module 模块，而不是单个 ES module，场景最为复杂。因此本节将使用 Node.js 执行 `tsc` 中生成的产物来进行讲述。
 
 #### Question: `.mjs` or `type: module`?
 
-直接运行 node esm/a.js 来运行 [Toolchain Support > tsc](xxxn/docx/NhjXdniyao9W5axA1VRcZcpRnJe#TFEWdT99tokanmx6nA2c0M6CnUf) 中生成的产物，会依次遇到如下问题：
+直接运行 `node esm/a.js` 来运行 [tsc](#typescript-tsc) 中生成的产物，会首先遇到如下问题：
 
 ```bash
 (node:76392) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
@@ -418,7 +404,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 根据 [https://nodejs.org/api/esm.html#enabling](https://nodejs.org/api/esm.html#enabling:)[:](https://nodejs.org/api/esm.html#enabling:)：
 
 > Node.js has two module systems: CommonJS modules and ECMAScript modules.
-> **Authors can tell Node.js to use the ECMAScript modules loader via the .mjs file extension, the package.json "type" field, or the --input-type flag**. Outside of those cases, Node.js will use the CommonJS module loader.
+> **Authors can tell Node.js to use the ECMAScript modules loader via the `.mjs` file extension, the package.json `"type"` field, or the `--input-type` flag**. Outside of those cases, Node.js will use the CommonJS module loader.
 
 我们，这里没有选择修改产物为 `.mjs`，选择了在 `package.json` 中增加 `"type": "module"`：
 
@@ -442,14 +428,14 @@ Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/esm/b' imported from /esm/a.j
 
 > Relative specifiers like `'./startup.js'` or `'../config.mjs'`. They refer to a path relative to the location of the importing file. **The file extension is always necessary for these.​**
 
-也就是说，Node.js 里加载 ES Module 必须带上 extension，但是 tsc 的产物默认没有 `.js` extension。根据 [TypeScript 文档](https://www.typescriptlang.org/docs/handbook/modules/reference.html#node16-nodenext)所述，进行如下修改：​
+也就是说，Node.js 中加载 ES Module 必须带上 extension，但是 tsc 的产物默认没有 `.js` extension。根据 [TypeScript 文档](https://www.typescriptlang.org/docs/handbook/modules/reference.html#node16-nodenext)所述，进行如下修改：​
 
 1. 将 `compilerOptions.module` 修改为 `NodeNext`，这是另一个很长很长的故事，这里不再展开；​
 2. 将所有的 `import "./foo"` 修改为 `import "./foo.js"`；
 
 > js extension 的问题还有一个解法，就是在 node 执行时带上 `--experimental-specifier-resolution=node`，但这一 Flag 在最新的 Node.js 20 中已经从文档中被移除，不建议使用。
-> ​
-> 最终，上述代码能够成功运行，最终修复的 Commit 见[这里](https://github.com/ulivz/tsc-top-level-import/commit/e2fbf6957ab8524f9984e0a51c75ac03932ce32b)。
+
+最终，上述代码能够成功运行，最终修复的 Commit 见[这里](https://github.com/ulivz/tsc-top-level-import/commit/e2fbf6957ab8524f9984e0a51c75ac03932ce32b)。
 
 #### Performance
 
@@ -460,7 +446,7 @@ Hello TLA (b) TLA (c)
 node esm/a.js  0.03s user 0.01s system 4% cpu 1.047 total
 ```
 
-可以看到，整个程序只用了 `1.047s` 来运行，这意味着 `b.js（sleep 1000ms）` 和 `c.js （sleep 500ms）` 的执行是并发的。
+可以看到，整个程序只用了 `1.047s` 来运行，这意味着 `b.js（sleep 1000ms）` 和 `c.js （sleep 500ms）` 的执行是**并发**的。
 
 ### In Chrome
 
@@ -483,7 +469,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 为了更好的观测运行行为，我们在代码中使用 `console.time` 来进行了打点，可以看到运行时序如下：
 
 <p align="center">
-  <img width="600" src="/tracing-chrome-tsc.png" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-tsc.png?raw=true" />
 </p>
 
 可以看到，**`b.js` 与 `c.js` 的 load 与 execution 都是并发的！**
@@ -495,11 +481,11 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 | Toolchain        | Environment | Timing                                                           | Summary                 |
 | ---------------- | ----------- | ---------------------------------------------------------------- | ----------------------- |
 | `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**     | b、c 的执行是**并行**的 |
-| `tsc`            | Chrome      | ![](/tracing-chrome-tsc.png)                                     | b、c 的执行是**并行**的 |
+| `tsc`            | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-tsc.png?raw=true)                                     | b、c 的执行是**并行**的 |
 | `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**       | b、c 的执行是**串行**的 |
-| `es bundle`      | Chrome      | ![](/tracing-chrome-esbundle.png)                                | b、c 的执行是**串行**的 |
+| `es bundle`      | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-esbundle.png?raw=true)                                | b、c 的执行是**串行**的 |
 | `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total** | b、c 的执行是**并行**的 |
-| `Webpack (iife)` | Chrome      | ![](/tracing-chrome-webpack.png)                                 | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/docs/public/tracing-chrome-webpack.png?raw=true)                                 | b、c 的执行是**并行**的 |
 
 总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
 
@@ -508,10 +494,10 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 在上一节中，我们通过比较初级的方式来验证了各种工具链对 TLA 语义的支持情况。实际上，[@evanw](https://github.com/evanw) 此前为了测试 TLA 的语义正确性，开放了一个仓库 [tla-fuzzer](https://github.com/evanw/tla-fuzzer)，来测试各种打包器对 TLA 预期的正确性，也进一步验证了我们的结论：
 
 <p align="center">
-  <img width="600" src="/tla-fuzzer.png" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tla-fuzzer.png?raw=true" />
 </p>
 
-有兴趣的同学可以研究 fuzzer 的实现，这里不再展开。
+有兴趣的同学可以研究其实现，这里不再展开。
 
 ## Webpack TLA Runtime
 
