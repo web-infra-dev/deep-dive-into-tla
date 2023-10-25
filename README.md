@@ -1040,10 +1040,10 @@ basicFunction(args, body) {
 
 也就是说，Webpack 对 TLA 的编译，由于产物中仍然会包含 `async/await`，这导致了只能在 **iOS 11**、**Chrome 55** 的机器上跑：
 
-| [Top-level await](https://caniuse.com/?search=Top%20level%20await)'s Compatibility | - Chrome 89 <br>- Safari 16 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1) |
+| [Top-level await](https://caniuse.com/?search=Top%20level%20await)'s Compatibility | - Chrome 89 <br>- Safari 16 | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-compatibility.png?raw=true) |
 | ---------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Expected Compatibility（Compiled to [ES5](https://caniuse.com/?search=ES5)） | - Chrome 23 <br>- Safari 6 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/69b3be806fbe4529bb6d8186d9052369~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1314&h=716&s=143729&e=png&b=f0e6d1) |
-| Actual Compatibility <br>（i.e. [async / await](https://caniuse.com/?search=async)） | - Chrome 55  <br>- Safari 11 | ![](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/2ac38e40b15445ffbae0b3dfa7421e0d~tplv-k3u1fbpfcp-jj-mark:0:0:0:0:q75.image#?w=1308&h=830&s=166585&e=png&b=f0e6d1) |
+| Expected Compatibility（Compiled to [ES5](https://caniuse.com/?search=ES5)） | - Chrome 23 <br>- Safari 6 | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-compatibility-webpack-expected.png?raw=true) |
+| Actual Compatibility <br>（i.e. [async / await](https://caniuse.com/?search=async)） | - Chrome 55  <br>- Safari 11 | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-compatibility-webpack-actual.png?raw=true) |
 
 
 ## 总结
