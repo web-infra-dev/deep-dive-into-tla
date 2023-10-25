@@ -561,35 +561,27 @@ document.body.appendChild(component());
 
 <!-- Update Link -->
 
-由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://bytedance.feishu.cn/wiki/Ti2jwLM7ciW6bqk20rYcgXDOnzh)。
+由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/tla-website/blob/master/docs/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
 
-可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析 **：**
-
-
-
-Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍！
+**Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍！**
 
 
 
 ### 整体流程
 
-  
+<p align="center">
+  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/docs/public/whole-process.png?raw=true" />
+</p>
 
-
-整体上来说，会以 **Entry** 为入口，通过 **`__webpack_require__()`** 执行 **Entry** 模块，接着，首先会通过 **`__webpack_handle_async_dependencies__()`** 加载依赖，依赖的加载和 **Entry** 是完全一样的，依赖若存在依赖，也需要首先加载自身的依赖，依赖加载结束后，获取到依赖的 exports 方能执行当前 Module，执行结束后，会调用 **`__webpack_async_result__()`** 进行回调，让被依赖的模块继续向前执行：
+整体上来说，会以 **Entry** 为入口，通过 **`__webpack_require__()`** 执行 **Entry** 模块，接着，首先会通过 **`__webpack_handle_async_dependencies__()`** 加载依赖，依赖的加载和 **Entry** 是完全一样的，依赖若存在依赖，也需要首先加载自身的依赖，依赖加载结束后，获取到依赖的 exports 方能执行当前 Module，执行结束后，会调用 **`__webpack_async_result__()`** 进行回调，让被依赖的模块继续向前执行。
 
 这里运行时的本质和依赖关系完全一致，**首先依赖开始加载本身是同步的**，最末端的依赖加载结束后，返回 `exports` 给上层依赖，上层依赖也才能开始执行，继续向上返回 exports，最终当 Entry 的所有依赖加载结束后，entry 本身的代码开始执行：
 
-暂时无法在飞书文档外展示此内容
-
-暂时无法在飞书文档外展示此内容
-
-  
-
+<p align="center">
+  <img width="300" src="https://github.com/ulivz/tla-website/blob/master/docs/public/whole-process-2.png?raw=true" />
+</p>
 
 可以看到，在没有 TLA 之前，这一流程会相当简单，就是一个同步的 DFS，但是一旦 Dep 的加载是异步的，那么这里就是一个异步加载的 DFS，涉及到复杂的异步任务处理。接下来，我们将详细讲述 Webpack TLA Runtime 的运行流程。
-
-  
 
 
 ### 基本概念
