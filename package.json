@@ -8,10 +8,11 @@
     "preview": "rspress preview"
   },
   "dependencies": {
-    "rspress": "1.2.0",
-    "@rspress/shared": "1.2.0"
+    "@rspress/shared": "1.2.0",
+    "rspress": "1.2.0"
   },
   "devDependencies": {
-    "@types/node": "^14"
+    "@types/node": "^14",
+    "rspress-plugin-load-readme": "^0.1.1"
   }
 }
