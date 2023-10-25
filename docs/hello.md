@@ -30,7 +30,7 @@ export default {
 
 有意思的是，**这一次的问题和我们想象的并不相同**，当我们使用 [Source Map Visualization](https://evanw.github.io/source-map-visualization/) 来定位问题时，我们发现，`async` 的位置是白色的 —— **没有源码与之映射**:
 
-![](https://github.com/ulivz/blog/blob/master/docs/public/source-map-missing.png?raw=true)
+![](https://github.com/ulivz/tla-website/blob/master/docs/public/source-map-missing.png?raw=true)
 
 随着进一步分析，我们发现这个 `async` 是由 Webpack 编译 [TLA (Top-level await)](https://github.com/tc39/proposal-top-level-await) 注入的 Runtime 引入的。在这样的背景下，我们开始继续研究 TLA。
 
@@ -89,7 +89,7 @@ promise.then(() => {
 <p align="center">
   <img
     width="200"
-    src="https://github.com/ulivz/blog/blob/master/docs/public/promise.gif?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/docs/public/promise.gif?raw=true"
   />
 </p>
 
@@ -115,7 +115,7 @@ const strings = await import(`/i18n/${navigator.language}`);
 <p align="center">
   <img
     width="500"
-    src="https://github.com/ulivz/blog/blob/master/docs/public/compatibility.png?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/docs/public/compatibility.png?raw=true"
   />
 </p>
 
@@ -136,7 +136,7 @@ console.log("Hello, TLA!");
 <p align="center">
   <img
     width="300"
-    src="https://github.com/ulivz/blog/blob/master/docs/public/tla-result.png?raw=true"
+    src="https://github.com/ulivz/tla-website/blob/master/docs/public/tla-result.png?raw=true"
   />
 </p>
 
@@ -244,7 +244,7 @@ export function sleep(t) {
 
 esbuild 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
-| <img width="500" src="https://github.com/ulivz/blog/blob/master/docs/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/blog/blob/master/docs/public/tsc-tla-errpr-2.png?raw=true" /> |
+| <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/docs/public/tsc-tla-errpr-2.png?raw=true" /> |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 
 编译成功后，产物如下：
@@ -279,7 +279,7 @@ console.log("Hello", B, C);
 
 Rollup 只能在 format 为 es 或 system 的场景下支持成功编译 TLA:
 
-![](https://github.com/ulivz/blog/blob/master/docs/public/rollup-tla.png?raw=true)
+![](https://github.com/ulivz/tla-website/blob/master/docs/public/rollup-tla.png?raw=true)
 
 `es` 这里和 `esbuild` 的行为一样修改了语义，这里不再赘述。对于 `system`，通过阅读 [SystemJS 文档](https://github.com/systemjs/systemjs/blob/main/docs/system-register.md#format-definition)，SystemJS 支持模块被定义为一个 Async Module：
 
@@ -383,7 +383,7 @@ parser.hooks.topLevelAwait.tap("HarmonyDetectionParserPlugin", () => {
 [bun build](https://bun.sh/docs/bundler#format) 目前只支持 esm，也就是说，bun 也会原封不动的将 TLA 编译到产物中去，同样也没有考虑兼容性，只考虑了现代浏览器的运行：
 
 <p align="center">
-  <img width="600" src="https://github.com/ulivz/blog/blob/master/docs/public/bun.png?raw=true" />
+  <img width="600" src="https://github.com/ulivz/tla-website/blob/master/docs/public/bun.png?raw=true" />
 </p>
 
 ## Profiling
