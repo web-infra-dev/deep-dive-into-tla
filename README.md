@@ -24,12 +24,12 @@
     - [整体流程](#整体流程)
     - [Basic Concepts](#basic-concepts)
       - [Prerequisites](#prerequisites-1)
-      - [Webpack 的编译过程](#webpack-的编译过程)
+      - [`webpack.Compiler`](#webpackcompiler)
       - [Webpack Runtime Globals](#webpack-runtime-globals)
-    - [主要流程](#主要流程)
+    - [产物分析](#产物分析)
       - [加载入口](#加载入口)
       - [入口的执行](#入口的执行)
-      - [Async Module（ **`__webpack_require__.a`** ）](#async-module-__webpack_require__a-)
+      - [`__webpack_require__.a`](#__webpack_require__a)
         - [***`queue`***](#queue)
         - [***`promise`***](#promise)
         - [***`resolveQueue`***](#resolvequeue)
@@ -285,7 +285,7 @@ export function sleep(t) {
 [esbuild](https://esbuild.github.io/) 目前只能在 `format` 为 `esm`，且 `target >= es2022` 时（这一点和 tsc 的 `module` 对齐，而不是 `target`）才能成功编译 TLA，也就是说，esbuild 本身只处理了成功编译，不会对 TLA 的兼容性负责：
 
 | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-1.png?raw=true" /> | <img width="500" src="https://github.com/ulivz/tla-website/blob/master/public/tsc-tla-errpr-2.png?raw=true" /> |
-| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 
 编译成功后，产物如下：
 
@@ -519,13 +519,13 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
 
 如不考虑资源加载耗时， `b.js（sleep 1000ms）` 和 `c.js （sleep 500ms）` 串行的执行耗时是 `1.5s`，并行执行的耗时是 `1s`。基于前面的测试技巧，我们对以下几种场景的产物进行了测试，得到报告如下：
 
-| Toolchain        | Environment | Timing                                                                                                 | Summary                 |
-| ---------------- | ----------- | ------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**                                           | b、c 的执行是**并行**的 |
+| Toolchain        | Environment | Timing                                                                                            | Summary                 |
+| ---------------- | ----------- | ------------------------------------------------------------------------------------------------- | ----------------------- |
+| `tsc`            | Node.js     | node esm/a.js 0.03s user 0.01s system 4% cpu **1.047 total**                                      | b、c 的执行是**并行**的 |
 | `tsc`            | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-tsc.png?raw=true)      | b、c 的执行是**并行**的 |
-| `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**                                             | b、c 的执行是**串行**的 |
+| `es bundle`      | Node.js     | node out.js 0.03s user 0.01s system 2% cpu **1.546 total**                                        | b、c 的执行是**串行**的 |
 | `es bundle`      | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-esbundle.png?raw=true) | b、c 的执行是**串行**的 |
-| `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                       | b、c 的执行是**并行**的 |
+| `Webpack (iife)` | Chrome      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                  | b、c 的执行是**并行**的 |
 | `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/tla-website/blob/master/public/tracing-chrome-webpack.png?raw=true)  | b、c 的执行是**并行**的 |
 
 总结一下，虽然 Rollup / esbuild / bun 等工具可以将包含 TLA 的模块成功编译成 es bundle，但是其语义是不符合原生的 TLA 语义的，会导致原本可以**并行**执行的模块变成了**同步**执行。只有 Webpack 通过编译到 iife，再加上复杂的 [Webpack TLA Runtime](#webpack-tla-runtime)，来模拟了符合 TLA 原生的语义，也就是说，在打包这件事上，Webpack 看起来是唯一一个能够正确模拟 TLA 语义的 Bundler。
@@ -602,9 +602,7 @@ document.body.appendChild(component());
 
 由于篇幅有限，产物太长，这里将 Output 进行了 external，请移步 [TLA Output](https://github.com/ulivz/tla-website/blob/master/public/tla-output.js)。可以看到使用了 Top-level await 后**构建产物会变得较为复杂**，后续会进一步分析。
 
-**Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍！**
-
-
+**Webpack 的编译产物看起来就是在 Bundler 层面，把 JS Runtime 原本该做的事情 Polyfill 了一遍。**
 
 ### 整体流程
 
@@ -627,7 +625,7 @@ document.body.appendChild(component());
 
 #### Prerequisites
 
-为了便于描述，我们重新创建了一个更小的 Example 进行分析：
+为了讲述 Webpack TLA Runtime 的运行流程，我们重新创建了一个更小的 Example 进行分析：
 
 <p align="center">
   <img width="300" src="https://github.com/ulivz/tla-website/blob/master/public/minimal-example-2.png?raw=true">
@@ -638,20 +636,18 @@ document.body.appendChild(component());
 | 文件           | 使用了 TLA？ | 别名      | 备注                                                                                          |
 | -------------- | ------------ | --------- | --------------------------------------------------------------------------------------------- |
 | `index.js`     | No           | **Entry** | `index.js` 是 `component.js` 的 **Dependent**；`component.js` 是 `index.js` 的 **Dependency** |
-| `component.js` | No           | **Dep**   |                                                                                               |
+| `component.js` | Yes          | **Dep**   |                                                                                               |
 
 
-#### Webpack 的编译过程
+#### `webpack.Compiler`
 
-为了更好的理解 TLA 内部原理，我们还需要了解 Webpack 的基本编译流程，一次 `Compiler.compile` 的流程主要如下：
+为了更好的理解 TLA 内部原理，我们还需要了解 Webpack 的基本编译流程，一次 compile 的的流程主要如下：
 
-- `newCompilationParams`：创建 `Compilation` 实例参数，核心功能是初始化用于在后续的构建流程中创建模块实例的工厂方法 `ModuleFactory`
-- `newCompilation`：真正创建 `Compilation` 实例，并挂载一些编译文件信息
-- `compiler.hooks.make` (Make)：**执行真正的模块编译流程**，这个部分会对入口和模块进行构建，运行 `loader`、解析依赖、递归构建等等；
-- `compilation.finish`：模块构建的收尾阶段，主要是对模块间依赖关系和一些依赖元数据做进一步的整理，为后续代码拼接做好准备
-- `compilation.seal` (Seal)：**模块冻结阶段**，开始拼接模块生成 `chunk` 和 `chunkGroup`，生成产物代码，这个后面会专门开章节介绍
-
-<!-- 来复习上述的 Runtime 是在哪个阶段被生成的。 -->
+- `newCompilationParams`：创建 `Compilation` 实例参数，核心功能是初始化用于在后续的构建流程中创建模块实例的工厂方法 `ModuleFactory`；
+- `newCompilation`：真正创建 `Compilation` 实例，并挂载一些编译文件信息；
+- `compiler.hooks.make`：**执行真正的模块编译流程 (Make)**，这个部分会对入口和模块进行构建，运行 `loader`、解析依赖、递归构建等等；
+- `compilation.finish`：模块构建的收尾阶段，主要是对模块间依赖关系和一些依赖元数据做进一步的整理，为后续代码拼接做好准备；
+- `compilation.seal`：**模块冻结阶段 (Seal)**，开始拼接模块生成 `chunk` 和 `chunkGroup`，生成产物代码。
 
 #### Webpack Runtime Globals
 
@@ -680,11 +676,13 @@ exports.require = "__webpack_require__";
 exports.asyncModule = "__webpack_require__.a";
 ```
 
-### 主要流程
+### 产物分析
+
+接下来，我们开始分析[产物](https://github.com/ulivz/tla-website/blob/master/public/tla-output.js)。
 
 #### 加载入口
 
-执行的入口如下：
+首先，执行的入口如下：
 
 ```js
 var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 moduleId
@@ -782,9 +780,11 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 2. **`__webpack_handle_async_dependencies__`** ：加载异步依赖；
 3. **`__webpack_async_result__`** 的作用：Async Module 加载结束的回调；
 
-#### Async Module（ **`__webpack_require__.a`** ）
+其中，`__webpack_require__.a` 是最值得一提的。
 
-`__webpack_require__.a` 的实现如下:
+#### `__webpack_require__.a`
+
+`__webpack_require__.a` 用于定义一个 Async Module，相关代码如下:
 
 ```js
  __webpack_require__. a = ( module , body, hasAwait ) => {
@@ -898,9 +898,9 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 
 上述 ***`promise`*** 上还挂载了 2 个额外的变量需要提及：
 
-| **`[webpackExports]`** | 反向引用了 `module.exports` *，* 因此 ****Entry** 可以通过 `promise` 来获取到 **Dep** 的 exports。                                                                                                                                                                                                   |
+| **`[webpackExports]`** | 反向引用了 `module.exports`，因此 ****Entry** 可以通过 `promise` 来获取到 **Dep** 的 exports。                                                                                                                                                                                                   |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`[webpackQueues]`**  | 1.  **Entry** 和 **Dep** 会互相持有彼此的状态；<br>     2.  在 **Entry** 加载依赖（此处是 **[** **Dep** **]** ）时，会传递一个 resolve 函数给 **Dep**，当 **Dep** 完全加载结束时，会调用 **Entry** 的 resolve 函数，将 Dep 的 `exports` 传递给 **Entry**，此时，**Entry** 的 **body** 才能开始执行。 |
+| **`[webpackQueues]`**  | 1.  **Entry** 和 **Dep** 会互相持有彼此的状态；<br>     2.  在 **Entry** 加载依赖（ **\[Dep\]** ）时，会传递一个 `resolve` 函数给 **Dep**，当 **Dep** 完全加载结束时，会调用 **Entry** 的 `resolve` 函数，将 Dep 的 `exports` 传递给 **Entry**，此时，**Entry** 的 **body** 才能开始执行。 |
 
 ##### ***`resolveQueue`***
 
@@ -926,33 +926,30 @@ var resolveQueue = (queue) => {
 
 ### 复杂例子
 
-暂时无法在飞书文档外展示此内容
+<p align="center">
+  <img
+    width="400"
+    src="https://github.com/ulivz/tla-website/blob/master/public/complicated-example.png?raw=true"
+  />
+</p>
 
-若左图依赖关系所示，其中 d、b 两个模块是包含了 TLA 的模块，那么：
+若左图依赖关系所示，其中 `d`、`b` 两个模块是包含了 TLA 的模块，那么：
 
-1.  a、c 会由于 TLA 的传染问题同样变成 Async Module；
+1. `a`、`c` 会由于 TLA 的传染问题同样变成 Async Module；
+2. **Module 开始 Require 的时机：** 即调用 `__webpack_require__` 的时机，这里会基于 import 的顺序进行 DFS
+   假设 a 中 import 如下所示：
+   ```js
+   import { b } from "./b";
+   import { c } from "./c";
+   import { sleep } from "./e";
+   ```
+   那么，Require 的顺序为 `a —> b —> e —> c —> d`
 
-1.  **Module 开始 Require 的时机：** 即调用 `__webpack_require__` 的时机，这里会基于 import 的顺序进行 DFS，假设 a 中 import 如下所示：
-
-    1.  ```
-        import { b } from "./b";
-        import { c } from "./c";
-        import { sleep } from "./e";
-        ```
-    1.    那么，Require 的顺序为 `a —> b —> e —> c —> d`
-
-1.  **Module 加载结束的时机：**
-
-    1.  若加载时长 `d > b`，那么Module 加载结束的时机为 `b —> d —> c —> a`
-    1.  若加载时长 `d < b`，那么Module 加载结束的时机为 `d —> c —> b —> a`
-    1.  这里忽视 Sync Module `a`，因为 `a` 在 Require 的时候就结束了
-    1.  在存在 TLA 的模块图中，Entry 一定是一个 Async Module
-
-  
-
-
-  
-
+3.  **Module 加载结束的时机：**
+   1. 若加载时长 `d > b`，那么Module 加载结束的时机为 `b —> d —> c —> a`
+   2. 若加载时长 `d < b`，那么Module 加载结束的时机为 `d —> c —> b —> a`
+   3. 这里忽视 Sync Module `a`，因为 `a` 在 Require 的时候就结束了
+   4. 在存在 TLA 的模块图中，Entry 一定是一个 Async Module
 
 ### 复杂的根源
 
