@@ -12,9 +12,8 @@ function download(url: string): Promise<string | never> {
       }
       if (error) {
         console.error(error.message);
-        // 消耗响应数据以释放内存
         res.resume();
-        reject(error)
+        reject(error);
       }
 
       res.setEncoding("utf8");
@@ -25,9 +24,7 @@ function download(url: string): Promise<string | never> {
       res.on("end", () => {
         resolve(rawData);
       });
-      res.on("error", (error) => {
-        reject(error);
-      });
+      res.on("error", reject);
     });
   });
 }
@@ -48,7 +45,7 @@ export function addSomePages(): RspressPlugin {
       return [
         //  Support the absolute path of the real file (filepath), which will read the content of md(x) in the disk
         {
-          routePath: "/tla",
+          routePath: "/post",
           content: md,
         },
       ];

@@ -7,7 +7,7 @@ hero:
   actions:
     - theme: brand
       text: Read more
-      link: /tla
+      link: /post
     - theme: alt
       text: Github
       link: https://github.com/ulivz/deep-dive-into-tla
