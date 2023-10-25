@@ -1089,12 +1089,12 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 
 ## 参考
 
-- <sup>[1]: https://rsbuild.dev/config/options/source.html#sourceinclude</sup>
-- <sup>[2]: https://github.com/tc39/proposal-top-level-await</sup>
-- <sup>[3]: https://github.com/evanw/esbuild/issues/253</sup>
-- <sup>[4]: https://github.com/rollup/rollup/issues/3623</sup>
-- <sup>[5]: https://www.typescriptlang.org/docs/handbook/esm-node.html</sup>
-- <sup>[6]: https://v8.dev/features/top-level-await</sup>
-- <sup>[7]: https://github.com/evanw/tla-fuzzer</sup>
-- <sup>[8]: https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221</sup>
+<sup>[1]: https://rsbuild.dev/config/options/source.html#sourceinclude</sup><br>
+<sup>[2]: https://github.com/tc39/proposal-top-level-await</sup><br>
+<sup>[3]: https://github.com/evanw/esbuild/issues/253</sup><br>
+<sup>[4]: https://github.com/rollup/rollup/issues/3623</sup><br>
+<sup>[5]: https://www.typescriptlang.org/docs/handbook/esm-node.html</sup><br>
+<sup>[6]: https://v8.dev/features/top-level-await</sup><br>
+<sup>[7]: https://github.com/evanw/tla-fuzzer</sup><br>
+<sup>[8]: https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221</sup>
 
