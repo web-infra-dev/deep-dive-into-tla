@@ -1,5 +1,7 @@
 # Deep Dive into `Top-Level-Await (TLA)`
 
+![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/main.png?raw=true)
+
 - [Introduction](#introduction)
 - [Specification](#specification)
 - [Compatibility](#compatibility)
@@ -539,7 +541,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
   <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-fuzzer.png?raw=true" />
 </p>
 
-有兴趣的同学可以研究其实现，这里不再展开。
+Fuzzing is done by randomly generating module graphs and comparing the evaluation order of the bundled code with V8's native module evaluation order.
 
 ## Webpack TLA Runtime
 
