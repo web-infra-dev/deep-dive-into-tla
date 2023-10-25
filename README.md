@@ -34,9 +34,9 @@
     - [加载 Entry](#加载-entry)
     - [Entry 的执行](#entry-的执行)
     - [`__webpack_require__.a`](#__webpack_require__a)
-      - [***`queue`***](#queue)
-      - [***`promise`***](#promise)
-      - [***`resolveQueue`***](#resolvequeue)
+      - [`queue`](#queue)
+      - [`promise`](#promise)
+      - [`resolveQueue`](#resolvequeue)
   - [复杂例子](#复杂例子)
   - [复杂的根源](#复杂的根源)
 - [现在能用 TLA 吗？](#现在能用-tla-吗)
@@ -46,7 +46,6 @@
 - [后续更新](#后续更新)
   - [Rspack 于 v0.3.8 正式支持 TLA，通过 Fuzzer 测试](#rspack-于-v038-正式支持-tla通过-fuzzer-测试)
 - [参考](#参考)
-- [License](#license)
 
 ## Introduction
 
@@ -87,55 +86,55 @@ export default {
 我们可以在 [ECMAScript proposal: Top-level await](https://github.com/tc39/proposal-top-level-await) 了解到 **TLA** 的最新的标准定义。TLA 的设计初衷来源于 `await` 仅在 `async function` 内可用，这带来了以下问题：
 
 1. 一个模块如果存在 `IIAFE` (_Immediately Invoked Async Function Expression_) ，可能会导致 `exports` 在该 `IIAFE` 的初始化完成之前就被访问，如下所示：
-  ```ts {4-6}
-  // awaiting.mjs
-  let output;
-  
-  (async () => {
-    output = await fetch(url);
-  })();
-  
-  export { output }; // output 被消费时，上述 IIAFE 还没执行结束
-  ```
+    ```ts {4-6}
+    // awaiting.mjs
+    let output;
+    
+    (async () => {
+      output = await fetch(url);
+    })();
+    
+    export { output }; // output 被消费时，上述 IIAFE 还没执行结束
+    ```
 
 2. 为了解决 1 中的问题，我们可能需要导出一个 Promise 给上游消费，但导出 Promise 显然会导致使用也需要感知这一类型：
-  ```ts {4}
-  // awaiting.mjs
-  let output;
-  
-  export default (async () => {
-    output = fetch(url); // await 被移除了，output 是一个 promise
-  })();
-  
-  export { output };
-  ```
+    ```ts {4}
+    // awaiting.mjs
+    let output;
+    
+    export default (async () => {
+      output = fetch(url); // await 被移除了，output 是一个 promise
+    })();
+    
+    export { output };
+    ```
 
-接着，我们可以这样消费：
-  ```ts
-  // usage.mjs
-  import promise, { output } from "./awaiting.mjs";
-  export function outputPlusValue(value) {
-    return output + value;
-  }
-  
-  promise.then(() => {
-    console.log(output);
-  });
-  ```
+    接着，我们可以这样消费：
+    ```ts
+    // usage.mjs
+    import promise, { output } from "./awaiting.mjs";
+    export function outputPlusValue(value) {
+      return output + value;
+    }
+    
+    promise.then(() => {
+      console.log(output);
+    });
+    ```
 
-这带来了以下问题：
+    这带来了以下问题<sup>[2]</sup：
 
-1. 每个依赖方都必须了解该模块的协议才能正确的使用该模块；
-2. 如果你忘记了这一协议，有时代码可能能够正常 Work（由于 `race` 获胜），有时则不能；
-3. 在多层依赖的情况下，Promise 需要贯穿在每个模块中（_“链式污染”？_）。
+    1. 每个依赖方都必须了解该模块的协议才能正确的使用该模块；
+    2. 如果你忘记了这一协议，有时代码可能能够正常 Work（由于 `race` 获胜），有时则不能；
+    3. 在多层依赖的情况下，Promise 需要贯穿在每个模块中（_“链式污染”？_）。
 
 
-<p align="center">
-  <img
-    width="200"
-    src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/promise.gif?raw=true"
-  />
-</p>
+  <p align="center">
+    <img
+      width="200"
+      src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/promise.gif?raw=true"
+    />
+  </p>
 
 为此，引入 `Top-level await`，模块的写法将可以变成这样：​
 
@@ -315,7 +314,7 @@ console.log("Hello", B, C);
 
 可以看到，**这里的产物直接平铺了所有的 `module` —— 这似乎改变了代码原始的语义！** 这一点我们可以在 [Profiling](#profiling) 一节中得到验证。
 
-对于 TLA 在 esbuild 中的支持，我们可以在 https://github.com/evanw/esbuild/issues/253 中找到更多信息，esbuild 作者 [@evanw](https://github.com/evanw) 的对此的回复是：
+对于 TLA 在 esbuild 中的支持，esbuild 作者 [@evanw](https://github.com/evanw) 的对此的回复是<sup>[4]</sup>：
 
 > Sorry, top-level await is not supported. It messes with a lot of things and adding support for it is quite complicated. It likely won't be supported for a long time.
 > 对不起，TLA 不受支持。它会影响许多事情，并且添加对它的支持相当复杂。可能很长一段时间内都无法支持。
@@ -330,7 +329,9 @@ console.log("Hello", B, C);
 
 > `execute: AsyncFunction` - If using an asynchronous function for execute, top-level await execution support semantics are provided following [variant B of the specification](https://github.com/tc39/proposal-top-level-await#variant-b-top-level-await-does-not-block-sibling-execution).
 
-因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 `execute` 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。关于 Rollup 在 iife 下支持 TLA 有一条 issue，可移步了解更多：https://github.com/rollup/rollup/issues/3623 。
+因此，Rollup 这里也不会有特殊的行为，只是将 TLA 包裹在 `execute` 函数中，因此 Rollup 本身对 TLA 没有更多的 Runtime 层面的处理。关于 Rollup 在 iife 下支持 TLA 有一条 issue<sup>[4]</sup>，可移步 https://github.com/rollup/rollup/issues/3623 了解更多。
+
+
 
 ### Webpack
 
@@ -473,7 +474,7 @@ Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/esm/b' imported from /esm/a.j
 
 > Relative specifiers like `'./startup.js'` or `'../config.mjs'`. They refer to a path relative to the location of the importing file. **The file extension is always necessary for these.​**
 
-也就是说，Node.js 中加载 ES Module 必须带上 extension，但是 tsc 的产物默认没有 `.js` extension。根据 [TypeScript 文档](https://www.typescriptlang.org/docs/handbook/modules/reference.html#node16-nodenext)所述，进行如下修改：​
+也就是说，Node.js 中加载 ES Module 必须带上 extension，但是 tsc 的产物默认没有 `.js` extension。根据 [TypeScript 文档](https://www.typescriptlang.org/docs/handbook/modules/reference.html#node16-nodenext)以及相关指南<sup>[5]</sup>所述，进行如下修改：​
 
 1. 将 `compilerOptions.module` 修改为 `NodeNext`，这是另一个很长很长的故事，这里不再展开；​
 2. 将所有的 `import "./foo"` 修改为 `import "./foo.js"`；
@@ -538,7 +539,7 @@ Chrome 从 89 开始支持 TLA，你可以像本文[开头](#compatibility)一�
   <img width="600" src="https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tla-fuzzer.png?raw=true" />
 </p>
 
-Fuzzer 测试是通过随机生成 module graphs 并将打包产物的执行顺序序与 V8 的原生模块执行顺序进行比较来完成的。
+Fuzzer 测试是通过随机生成 module graphs 并将打包产物的执行顺序序与 v8<sup>[6]</sup> 的原生模块执行顺序进行比较来完成的<sup>[7]</sup>。
 
 ## Webpack TLA Runtime
 
@@ -886,7 +887,7 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 
 这两个核心方法给 body 函数，注意，body 函数内部的执行是异步的，当 body 函数开始执行后，如果 `queue` 存在（即在 TLA 模块内）且 `queue.d < 0`，那么将 `queue.d` 赋值为 `0`。
 
-##### ***`queue`***
+##### `queue`
 
 这是一个状态机：
 
@@ -894,7 +895,7 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 - 当 TLA 模块的 body 执行结束后，`queue.d` 会被赋值为 `0`
 - 当 TLA 模块完全加载结束后，`resolveQueue` 方法中会将 `queue.d` 赋值为 `1`
 
-##### ***`promise`***
+##### `promise`
 
 上述 ***`promise`*** 上还挂载了 2 个额外的变量需要提及：
 
@@ -902,7 +903,7 @@ var __webpack_exports__ = __webpack_require__(138);  // 138 是 index.js 的 mod
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **`[webpackQueues]`**  | 1.  **Entry** 和 **Dep** 会互相持有彼此的状态；<br>     2.  在 **Entry** 加载依赖（ **\[Dep\]** ）时，会传递一个 `resolve` 函数给 **Dep**，当 **Dep** 完全加载结束时，会调用 **Entry** 的 `resolve` 函数，将 Dep 的 `exports` 传递给 **Entry**，此时，**Entry** 的 **body** 才能开始执行。 |
 
-##### ***`resolveQueue`***
+##### `resolveQueue`
 
 **`resolveQueue` 绝对是这段 Runtime 中的精华之一**，在模块的 body 执行完，会调用 `resolveQueue` 函数，实现如下：
 
@@ -1052,7 +1053,7 @@ basicFunction(args, body) {
 
 ## 写在最后
 
-Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist **[Top-level await is a footgun 👣🔫](https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221#top-level-await-is-a-footgun-)** 中提到：
+Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist **[Top-level await is a footgun 👣🔫](https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221#top-level-await-is-a-footgun-)** 中提到<sup>[8]</sup>：
 
 > At first, my reaction was that it's such a self-evidently bad idea that I must have just misunderstood something. But I'm no longer sure that's the case, so I'm sticking my oar in: **Top-level** **`await`** **, as far as I can tell, is a mistake and it should not become part of the language.**
 >
@@ -1089,18 +1090,11 @@ Rollup 作者 [Rich Harris](https://github.com/Rich-Harris) 在此前一篇 Gist
 ## 参考
 
 - <sup>[1]: https://rsbuild.dev/config/options/source.html#sourceinclude</sup>
-- https://github.com/tc39/proposal-top-level-await
-- https://v8.dev/features/top-level-await
-- https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221
-- https://nodejs.org/en/blog/release/v14.8.0
-- https://github.com/evanw/esbuild/issues/253
-- https://github.com/rollup/rollup/issues/3623
-- https://www.typescriptlang.org/docs/handbook/esm-node.html
+- <sup>[2]: https://github.com/tc39/proposal-top-level-await</sup>
+- <sup>[3]: https://github.com/evanw/esbuild/issues/253</sup>
+- <sup>[4]: https://github.com/rollup/rollup/issues/3623</sup>
+- <sup>[5]: https://www.typescriptlang.org/docs/handbook/esm-node.html</sup>
+- <sup>[6]: https://v8.dev/features/top-level-await</sup>
+- <sup>[7]: https://github.com/evanw/tla-fuzzer</sup>
+- <sup>[8]: https://gist.github.com/Rich-Harris/0b6f317657f5167663b493c722647221</sup>
 
----
-
-## License
-
-[![CC0](http://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
-
-To the extent possible under law, [ULIVZ](https://github.com/ulivz) has waived all copyright and related or neighboring rights to this work.
