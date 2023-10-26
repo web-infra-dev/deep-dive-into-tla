@@ -16,9 +16,9 @@ devDependencies:
   '@types/node':
     specifier: ^14
     version: 14.18.63
-  rspress-plugin-load-readme:
-    specifier: ^0.1.1
-    version: 0.1.1(@rspress/shared@1.2.0)(rspress@1.2.0)
+  rspress-plugin-remote-page:
+    specifier: 0.2.2
+    version: 0.2.2(@rspress/shared@1.2.0)(rspress@1.2.0)
 
 packages:
 
@@ -6470,8 +6470,8 @@ packages:
     dependencies:
       fs-extra: 11.1.1
 
-  /rspress-plugin-load-readme@0.1.1(@rspress/shared@1.2.0)(rspress@1.2.0):
-    resolution: {integrity: sha512-tmLKFO1hEkA2ql6e0u3a1LvYz6M50usowOrKnaHmjv+0FU+9RXJEjHp7t26rrZpw0mvqFMJ1uU9ARAqPESAsfg==}
+  /rspress-plugin-remote-page@0.2.2(@rspress/shared@1.2.0)(rspress@1.2.0):
+    resolution: {integrity: sha512-TLA9lNDk88oRduy7BdMOog6MLGqFEbLjZwr35MtadTroPUaW+HJa0xp2snuCNNWwZWp7odx3cKn8HyQWJ6RL0A==}
     peerDependencies:
       '@rspress/shared': '1'
       rspress: '1'
