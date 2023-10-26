@@ -528,7 +528,7 @@ Ignoring the time consumed by resource loading, the synchronous execution time o
 | `Webpack (iife)` | Node.js      | node dist/main.js 0.03s user 0.01s system 3% cpu **1.034 total**                                         | Execution of b and c is **concurrent** |
 | `Webpack (iife)` | Chrome      | ![](https://github.com/ulivz/deep-dive-into-tla/blob/master/public/tracing-chrome-webpack.png?raw=true)  | Execution of b and c is **concurrent** |
 
-To sum up, although tools like Rollup/esbuild/bun can successfully compile modules containing TLA into es bundle, their semantics do not comply with the semantics of TLA specification. The existing simple packaging methods will turn the originally **concurrent execution** module into **synchronous execution**. Only Webpack simulates the semantics of TLA by compiling to iife and then adding the complex [Webpack TLA Runtime](#webpack-tla-runtime), which means that in terms of packaging, Webpack appears to be the only Bundler that can correctly simulate TLA semantics.
+To sum up, although tools like Rollup/esbuild/bun can successfully compile modules containing TLA into es bundle, their semantics do not comply with the semantics of TLA specification. Existing simple packaging strategies can turn modules that could originally be **executed in parallel** into **synchronous execution**. Only Webpack simulates the semantics of TLA by compiling to iife and then adding the complex [Webpack TLA Runtime](#webpack-tla-runtime), which means that in terms of packaging, Webpack appears to be the only Bundler that can correctly simulate TLA semantics.
 
 ### TLA Fuzzer
 
