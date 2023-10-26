@@ -2,6 +2,10 @@
 
 [![CC0](http://mirrors.creativecommons.org/presskit/buttons/88x31/svg/cc-zero.svg)](https://creativecommons.org/publicdomain/zero/1.0/)
 
+> Participate in discussions: https://github.com/orgs/web-infra-dev/discussions/9
+
+> 中文版本：https://github.com/web-infra-dev/deep-dive-into-tla/blob/master/README-zh-CN.md
+
 ## Table of Contents
 
 - [Table of Contents](#table-of-contents)
